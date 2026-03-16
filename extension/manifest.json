@@ -1,0 +1,47 @@
+{
+  "manifest_version": 3,
+  "name": "AI Summary Assistant",
+  "version": "4.0.0",
+  "description": "一键提取网页正文/视频字幕，AI 生成结构化摘要与思维导图",
+
+  "permissions": [
+    "activeTab",
+    "sidePanel",
+    "storage"
+  ],
+
+  "background": {
+    "service_worker": "background/service-worker.js"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": [
+        "content/Readability.js",
+        "content/extractors/article.js",
+        "content/extractors/bilibili.js",
+        "content/extractors/youtube.js",
+        "content/extractors/github.js",
+        "content/extractors/stackoverflow.js",
+        "content/extractors/index.js",
+        "content/content-script.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+
+  "side_panel": {
+    "default_path": "sidepanel/sidepanel.html"
+  },
+
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+
+  "action": {
+    "default_title": "AI Summary Assistant"
+  }
+}

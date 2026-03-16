@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.aisummary.mapper.SummaryMapper">
+
+    <!-- 摘要+标签 结果映射 -->
+    <resultMap id="summaryWithTags" type="com.example.aisummary.dto.SummaryResponse">
+        <id property="id" column="id"/>
+        <result property="url" column="url"/>
+        <result property="title" column="title"/>
+        <result property="sourceType" column="source_type"/>
+        <result property="summaryJson" column="summary_json"/>
+        <result property="language" column="language"/>
+        <result property="createTime" column="create_time"/>
+        <collection property="tags" ofType="com.example.aisummary.dto.SummaryResponse$TagInfo">
+            <id property="id" column="tag_id"/>
+            <result property="name" column="tag_name"/>
+        </collection>
+    </resultMap>
+
+    <!-- 分页查询摘要列表 -->
+    <select id="selectSummaryPage" resultMap="summaryWithTags">
+        SELECT DISTINCT s.id, s.url, s.title, s.source_type, s.summary_json,
+               s.language, s.create_time, t.id AS tag_id, t.name AS tag_name
+        FROM summary s
+        LEFT JOIN summary_tag st ON s.id = st.summary_id
+        LEFT JOIN tag t ON st.tag_id = t.id
+        WHERE s.user_id = #{userId}
+        <if test="keyword != null and keyword != ''">
+            AND (s.title LIKE CONCAT('%', #{keyword}, '%')
+                 OR JSON_EXTRACT(s.summary_json, '$.one_line_summary') LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        <if test="sourceType != null and sourceType != ''">
+            AND s.source_type = #{sourceType}
+        </if>
+        <if test="tagId != null">
+            AND s.id IN (SELECT summary_id FROM summary_tag WHERE tag_id = #{tagId})
+        </if>
+        ORDER BY s.create_time DESC
+    </select>
+
+    <!-- 查询单条摘要详情 -->
+    <select id="selectSummaryDetail" resultMap="summaryWithTags">
+        SELECT s.id, s.url, s.title, s.source_type, s.summary_json,
+               s.language, s.create_time, t.id AS tag_id, t.name AS tag_name
+        FROM summary s
+        LEFT JOIN summary_tag st ON s.id = st.summary_id
+        LEFT JOIN tag t ON st.tag_id = t.id
+        WHERE s.id = #{id} AND s.user_id = #{userId}
+    </select>
+
+</mapper>
