@@ -226,8 +226,12 @@ body {
 
 .action-bar {
   display: flex; gap: 8px; margin-top: 8px; padding-top: 12px; border-top: 1px solid #eee;
+  flex-wrap: wrap;
 }
-.action-bar .btn-secondary { flex: 1; text-align: center; }
+.action-bar .btn-secondary { flex: 1; text-align: center; min-width: 0; }
+.action-bar .btn-translate { background: #e8f4fd; color: #2e86c1; border-color: #b3d9f2; }
+.action-bar .btn-translate:hover { background: #d4ecfa; }
+.action-bar .btn-translate:disabled { opacity: 0.6; cursor: not-allowed; }
 
 /* ===== 历史记录页 ===== */
 .history-header { padding: 12px 16px; display: flex; gap: 8px; background: white; border-bottom: 1px solid #eee; }
@@ -326,3 +330,25 @@ body {
   75% { opacity: 1; }
   100% { opacity: 0; }
 }
+
+/* ===== 思维导图全屏 ===== */
+.mindmap-fullscreen-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: #fff; z-index: 300;
+  display: flex; flex-direction: column;
+}
+.mindmap-fullscreen-overlay.hidden { display: none; }
+.mindmap-fullscreen-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px; border-bottom: 1px solid #e0e0e0; background: #f8f9fa;
+  flex-shrink: 0;
+}
+.mindmap-fullscreen-header h3 { font-size: 15px; margin: 0; }
+.mindmap-fullscreen-actions { display: flex; gap: 8px; align-items: center; }
+.btn-small { padding: 5px 10px; font-size: 12px; }
+.btn-fs-close { font-size: 18px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; }
+.mindmap-fullscreen-body { flex: 1; overflow: hidden; position: relative; }
+.mindmap-svg-fullscreen { width: 100%; height: 100%; }
+
+/* 思维导图操作按钮小样式 */
+.mindmap-toggle .toggle-btn[title] { padding: 4px 8px; font-size: 14px; min-width: auto; }

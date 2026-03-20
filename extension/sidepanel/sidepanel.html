@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" id="html-root">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -19,30 +19,30 @@
 
   <!-- ===== 底部导航 Tab ===== -->
   <nav class="tab-bar">
-    <button class="tab-btn active" data-tab="tab-summary">📄 摘要</button>
-    <button class="tab-btn" data-tab="tab-history">📚 历史</button>
+    <button class="tab-btn active" data-tab="tab-summary" data-i18n="tabSummary">📄 摘要</button>
+    <button class="tab-btn" data-tab="tab-history" data-i18n="tabHistory">📚 历史</button>
   </nav>
 
   <!-- ═══════════════ 登录/注册页 ═══════════════ -->
   <div id="page-auth" class="page hidden">
     <div class="auth-container">
       <div class="auth-icon">🔐</div>
-      <h2 class="auth-title">登录以同步历史记录</h2>
-      <p class="auth-desc">登录后摘要会自动保存到云端</p>
+      <h2 class="auth-title" data-i18n="authTitle">登录以同步历史记录</h2>
+      <p class="auth-desc" data-i18n="authDesc">登录后摘要会自动保存到云端</p>
 
       <div class="form-group">
-        <input id="auth-email" type="email" placeholder="邮箱" autocomplete="email">
+        <input id="auth-email" type="email" placeholder="邮箱" data-i18n="authEmailPlaceholder" autocomplete="email">
       </div>
       <div class="form-group">
-        <input id="auth-password" type="password" placeholder="密码（至少6位）" autocomplete="current-password">
+        <input id="auth-password" type="password" placeholder="密码（至少6位）" data-i18n="authPasswordPlaceholder" autocomplete="current-password">
       </div>
 
       <p id="auth-error" class="auth-error hidden"></p>
 
-      <button id="btn-login" class="btn-primary" style="width:100%">登录</button>
-      <button id="btn-register" class="btn-secondary" style="width:100%;margin-top:8px">注册新账号</button>
+      <button id="btn-login" class="btn-primary" style="width:100%" data-i18n="btnLogin">登录</button>
+      <button id="btn-register" class="btn-secondary" style="width:100%;margin-top:8px" data-i18n="btnRegister">注册新账号</button>
 
-      <button id="btn-skip-login" class="btn-link">跳过，不登录使用</button>
+      <button id="btn-skip-login" class="btn-link" data-i18n="btnSkipLogin">跳过，不登录使用</button>
     </div>
   </div>
 
@@ -52,22 +52,22 @@
       <!-- 空闲状态 -->
       <div id="state-idle" class="state">
         <div class="idle-icon">🤖</div>
-        <p class="idle-text">打开任意网页文章，点击下方按钮生成摘要</p>
-        <button id="btn-generate" class="btn-primary">生成摘要</button>
+        <p class="idle-text" data-i18n="idleText">打开任意网页文章，点击下方按钮生成摘要</p>
+        <button id="btn-generate" class="btn-primary" data-i18n="btnGenerate">生成摘要</button>
       </div>
 
       <!-- 加载状态 -->
       <div id="state-loading" class="state hidden">
         <div class="loader"></div>
-        <p class="loading-text">正在提取内容并生成摘要...</p>
-        <p class="loading-sub">首次使用可能需要 10-20 秒</p>
+        <p class="loading-text" data-i18n="loadingText">正在提取内容并生成摘要...</p>
+        <p class="loading-sub" data-i18n="loadingSub">首次使用可能需要 10-20 秒</p>
       </div>
 
       <!-- 错误状态 -->
       <div id="state-error" class="state hidden">
         <div class="error-icon">❌</div>
         <p id="error-message" class="error-text"></p>
-        <button id="btn-retry" class="btn-primary">重试</button>
+        <button id="btn-retry" class="btn-primary" data-i18n="btnRetry">重试</button>
       </div>
 
       <!-- 结果状态 -->
@@ -81,15 +81,17 @@
           <p id="result-summary" class="summary-text"></p>
         </div>
         <div class="section">
-          <h3 class="section-title">📌 核心要点</h3>
+          <h3 class="section-title" data-i18n="sectionKeyPoints">📌 核心要点</h3>
           <ul id="result-keypoints" class="keypoints-list"></ul>
         </div>
         <div class="section">
           <div class="section-header">
-            <h3 class="section-title">🗺️ 思维导图</h3>
+            <h3 class="section-title" data-i18n="sectionMindmap">🗺️ 思维导图</h3>
             <div class="mindmap-toggle">
-              <button id="btn-mindmap-visual" class="toggle-btn active">图形</button>
-              <button id="btn-mindmap-text" class="toggle-btn">文本</button>
+              <button id="btn-mindmap-visual" class="toggle-btn active" data-i18n="btnMindmapVisual">图形</button>
+              <button id="btn-mindmap-text" class="toggle-btn" data-i18n="btnMindmapText">文本</button>
+              <button id="btn-mindmap-fullscreen" class="toggle-btn" title="全屏查看">⛶</button>
+              <button id="btn-mindmap-export-png" class="toggle-btn" title="导出 PNG">📷</button>
             </div>
           </div>
           <div id="mindmap-visual-container" class="mindmap-container">
@@ -99,6 +101,20 @@
             <pre id="mindmap-markdown" class="mindmap-preview"></pre>
           </div>
         </div>
+
+        <!-- 思维导图全屏遮罩 -->
+        <div id="mindmap-fullscreen-overlay" class="mindmap-fullscreen-overlay hidden">
+          <div class="mindmap-fullscreen-header">
+            <h3 data-i18n="sectionMindmap">🗺️ 思维导图</h3>
+            <div class="mindmap-fullscreen-actions">
+              <button id="btn-fs-export-png" class="btn-secondary btn-small">📷 PNG</button>
+              <button id="btn-fs-close" class="btn-icon btn-fs-close">✕</button>
+            </div>
+          </div>
+          <div class="mindmap-fullscreen-body">
+            <svg id="mindmap-svg-fullscreen" class="mindmap-svg-fullscreen"></svg>
+          </div>
+        </div>
         <!-- 保存状态提示 -->
         <div id="save-status" class="save-status hidden">
           <span id="save-status-text">✅ 已保存到云端</span>
@@ -106,7 +122,7 @@
 
         <!-- 导出菜单 -->
         <div class="section">
-          <h3 class="section-title">📤 导出笔记</h3>
+          <h3 class="section-title" data-i18n="sectionExport">📤 导出笔记</h3>
           <div class="export-buttons">
             <button id="btn-export-notion" class="export-btn" title="导出到 Notion">
               <span class="export-icon">📓</span>
@@ -120,13 +136,18 @@
               <span class="export-icon">📝</span>
               <span>Logseq</span>
             </button>
+            <button id="btn-export-pdf" class="export-btn" title="导出 PDF">
+              <span class="export-icon">📄</span>
+              <span>PDF</span>
+            </button>
           </div>
           <p id="export-status" class="export-status hidden"></p>
         </div>
 
         <div class="action-bar">
-          <button id="btn-copy" class="btn-secondary">📋 复制摘要</button>
-          <button id="btn-new" class="btn-secondary">🔄 新的摘要</button>
+          <button id="btn-translate" class="btn-secondary btn-translate" data-i18n="btnTranslate">🌐 翻译</button>
+          <button id="btn-copy" class="btn-secondary" data-i18n="btnCopy">📋 复制摘要</button>
+          <button id="btn-new" class="btn-secondary" data-i18n="btnNew">🔄 新的摘要</button>
         </div>
       </div>
     </main>
@@ -135,22 +156,22 @@
   <!-- ═══════════════ 历史记录页 ═══════════════ -->
   <div id="tab-history" class="page hidden">
     <div class="history-header">
-      <input id="history-search" type="text" placeholder="🔍 搜索标题或内容..." class="search-input">
+      <input id="history-search" type="text" placeholder="🔍 搜索标题或内容..." data-i18n="historySearchPlaceholder" class="search-input">
       <select id="history-filter" class="filter-select">
-        <option value="">全部类型</option>
-        <option value="article">📄 文章</option>
-        <option value="bilibili">📺 B站</option>
-        <option value="youtube">▶️ YouTube</option>
-        <option value="github">🐙 GitHub</option>
-        <option value="stackoverflow">💡 SO</option>
+        <option value="" data-i18n="historyFilterAll">全部类型</option>
+        <option value="article" data-i18n="historyFilterArticle">📄 文章</option>
+        <option value="bilibili" data-i18n="historyFilterBilibili">📺 B站</option>
+        <option value="youtube" data-i18n="historyFilterYoutube">▶️ YouTube</option>
+        <option value="github" data-i18n="historyFilterGithub">🐙 GitHub</option>
+        <option value="stackoverflow" data-i18n="historyFilterSO">💡 SO</option>
       </select>
     </div>
 
     <!-- 未登录提示 -->
     <div id="history-need-login" class="state hidden">
       <div class="idle-icon">🔒</div>
-      <p class="idle-text">登录后即可查看历史记录</p>
-      <button id="btn-goto-login" class="btn-primary">去登录</button>
+      <p class="idle-text" data-i18n="historyNeedLogin">登录后即可查看历史记录</p>
+      <button id="btn-goto-login" class="btn-primary" data-i18n="btnGotoLogin">去登录</button>
     </div>
 
     <!-- 历史列表 -->
@@ -159,7 +180,7 @@
     <!-- 空状态 -->
     <div id="history-empty" class="state hidden">
       <div class="idle-icon">📭</div>
-      <p class="idle-text">暂无历史记录</p>
+      <p class="idle-text" data-i18n="historyEmpty">暂无历史记录</p>
     </div>
 
     <!-- 加载更多 -->
@@ -167,7 +188,7 @@
       <div class="loader-small"></div>
     </div>
 
-    <button id="btn-load-more" class="btn-secondary btn-load-more hidden">加载更多</button>
+    <button id="btn-load-more" class="btn-secondary btn-load-more hidden" data-i18n="btnLoadMore">加载更多</button>
 
     <!-- 历史详情遮罩 -->
     <div id="history-detail-overlay" class="overlay hidden">
@@ -185,11 +206,11 @@
             <p id="detail-summary" class="summary-text"></p>
           </div>
           <div class="section">
-            <h3 class="section-title">📌 核心要点</h3>
+            <h3 class="section-title" data-i18n="sectionKeyPoints">📌 核心要点</h3>
             <ul id="detail-keypoints" class="keypoints-list"></ul>
           </div>
           <div class="detail-actions">
-            <button id="btn-detail-delete" class="btn-danger">🗑️ 删除</button>
+            <button id="btn-detail-delete" class="btn-danger">🗑️ <span data-i18n="btnDelete">删除</span></button>
           </div>
         </div>
       </div>
@@ -200,33 +221,40 @@
   <div id="settings-overlay" class="overlay hidden">
     <div class="settings-panel">
       <div class="settings-header">
-        <h2>设置</h2>
+        <h2 data-i18n="settingsTitle">设置</h2>
         <button id="btn-close-settings" class="btn-icon">✕</button>
       </div>
       <div class="settings-body">
         <div class="form-group">
-          <label for="select-provider">AI 服务商</label>
-          <select id="select-provider">
-            <option value="deepseek">DeepSeek（推荐，便宜）</option>
-            <option value="openai">OpenAI</option>
+          <label for="select-lang" data-i18n="settingsLang">界面语言</label>
+          <select id="select-lang">
+            <option value="zh" data-i18n="langZh">中文</option>
+            <option value="en" data-i18n="langEn">English</option>
           </select>
         </div>
         <div class="form-group">
-          <label for="input-apikey">API Key</label>
-          <input id="input-apikey" type="password" placeholder="输入你的 API Key">
-          <p class="form-hint">Key 仅存储在本地浏览器中</p>
+          <label for="select-provider" data-i18n="settingsProvider">AI 服务商</label>
+          <select id="select-provider">
+            <option value="deepseek" data-i18n="providerDeepseek">DeepSeek（推荐，便宜）</option>
+            <option value="openai" data-i18n="providerOpenai">OpenAI</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="input-apikey" data-i18n="settingsApiKey">API Key</label>
+          <input id="input-apikey" type="password" placeholder="输入你的 API Key" data-i18n="settingsApiKeyPlaceholder">
+          <p class="form-hint" data-i18n="settingsApiKeyHint">Key 仅存储在本地浏览器中</p>
         </div>
 
         <!-- 账号信息 -->
         <div id="settings-account" class="settings-account hidden">
           <div class="divider-line"></div>
-          <label>当前账号</label>
+          <label data-i18n="settingsAccount">当前账号</label>
           <p id="settings-email" class="settings-email-text"></p>
-          <button id="btn-logout" class="btn-danger" style="width:100%">退出登录</button>
+          <button id="btn-logout" class="btn-danger" style="width:100%" data-i18n="btnLogout">退出登录</button>
         </div>
 
         <div style="margin-top:16px">
-          <button id="btn-save-settings" class="btn-primary" style="width:100%">保存设置</button>
+          <button id="btn-save-settings" class="btn-primary" style="width:100%" data-i18n="btnSaveSettings">保存设置</button>
         </div>
       </div>
     </div>
@@ -234,6 +262,7 @@
 
   <!-- JS -->
   <script src="markmap-bundle.js"></script>
+  <script src="../utils/i18n.js"></script>
   <script src="../utils/prompts.js"></script>
   <script src="../utils/api.js"></script>
   <script src="../utils/backend.js"></script>
