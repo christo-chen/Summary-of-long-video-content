@@ -10,6 +10,11 @@
     "storage"
   ],
 
+  "host_permissions": [
+    "https://www.youtube.com/*",
+    "https://api.bilibili.com/*"
+  ],
+
   "background": {
     "service_worker": "background/service-worker.js"
   },
