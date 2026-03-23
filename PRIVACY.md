@@ -21,8 +21,6 @@ AI Summary Assistant is a Chrome browser extension that extracts webpage content
 This extension communicates with the following third-party services **only when you initiate an action**:
 
 - **DeepSeek API** or **OpenAI API** — to generate summaries (using your own API key)
-- **YouTube** — to fetch video subtitle data from the current page
-- **Bilibili** — to fetch video subtitle data from the current page
 - **Notion API** (optional) — if you choose to export summaries to Notion
 
 No data is sent to these services automatically or in the background.
@@ -32,7 +30,6 @@ No data is sent to these services automatically or in the background.
 - `activeTab` — to extract content from the current webpage
 - `sidePanel` — to display the summary sidebar
 - `storage` — to save your settings locally
-- `host_permissions` for `youtube.com` and `bilibili.com` — to fetch video subtitle data
 
 ## Data Security
 
