@@ -54,6 +54,23 @@
         <div class="idle-icon">🤖</div>
         <p class="idle-text" data-i18n="idleText">打开任意网页文章，点击下方按钮生成摘要</p>
         <button id="btn-generate" class="btn-primary" data-i18n="btnGenerate">生成摘要</button>
+        <div class="manual-divider">
+          <span class="divider-line-h"></span>
+          <span class="divider-text" data-i18n="orManualInput">或手动输入内容</span>
+          <span class="divider-line-h"></span>
+        </div>
+        <button id="btn-show-manual" class="btn-secondary btn-manual" data-i18n="btnManualInput">📋 粘贴文本生成摘要</button>
+      </div>
+
+      <!-- 手动输入状态 -->
+      <div id="state-manual" class="state hidden">
+        <h3 class="manual-title" data-i18n="manualTitle">粘贴内容</h3>
+        <p class="manual-hint" data-i18n="manualHint">粘贴视频字幕、文档内容、或任意文本</p>
+        <textarea id="manual-textarea" class="manual-textarea" rows="10" placeholder="在此粘贴文本内容..." data-i18n="manualPlaceholder"></textarea>
+        <div class="manual-actions">
+          <button id="btn-manual-submit" class="btn-primary" data-i18n="btnManualSubmit">生成摘要</button>
+          <button id="btn-manual-cancel" class="btn-secondary" data-i18n="btnManualCancel">返回</button>
+        </div>
       </div>
 
       <!-- 加载状态 -->

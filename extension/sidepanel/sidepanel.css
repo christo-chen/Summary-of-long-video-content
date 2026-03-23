@@ -91,6 +91,25 @@ body {
   cursor: pointer; margin-top: 16px; text-decoration: underline;
 }
 
+/* ===== 手动输入 ===== */
+.manual-divider {
+  display: flex; align-items: center; gap: 10px; margin: 20px 0 12px; width: 100%;
+}
+.divider-line-h { flex: 1; height: 1px; background: #e0e0e0; }
+.divider-text { color: #95a5a6; font-size: 12px; white-space: nowrap; }
+.btn-manual { width: 100%; }
+.manual-title { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+.manual-hint { font-size: 13px; color: #95a5a6; margin-bottom: 12px; }
+.manual-textarea {
+  width: 100%; padding: 12px; border: 1px solid #d5d8dc; border-radius: 8px;
+  font-size: 13px; line-height: 1.6; resize: vertical; min-height: 150px;
+  font-family: inherit; color: #2c3e50; background: #fff;
+}
+.manual-textarea:focus { border-color: #2e86c1; outline: none; box-shadow: 0 0 0 2px rgba(46,134,193,0.15); }
+.manual-actions { display: flex; gap: 8px; margin-top: 12px; }
+.manual-actions .btn-primary { flex: 2; }
+.manual-actions .btn-secondary { flex: 1; }
+
 /* ===== 认证页 ===== */
 .auth-container {
   padding: 40px 24px;

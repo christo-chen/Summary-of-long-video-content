@@ -37,6 +37,14 @@ const I18n = {
       // 摘要页 - 空闲
       idleText: "打开任意网页文章，点击下方按钮生成摘要",
       btnGenerate: "生成摘要",
+      orManualInput: "或手动输入内容",
+      btnManualInput: "📋 粘贴文本生成摘要",
+      manualTitle: "粘贴内容",
+      manualHint: "粘贴视频字幕、文档内容、或任意文本",
+      manualPlaceholder: "在此粘贴文本内容...",
+      btnManualSubmit: "生成摘要",
+      btnManualCancel: "返回",
+      manualEmpty: "请先粘贴内容",
 
       // 摘要页 - 加载
       loadingText: "正在提取内容并生成摘要...",
@@ -132,6 +140,7 @@ const I18n = {
       sourceYoutube: "▶️ YouTube",
       sourceGithub: "🐙 GitHub",
       sourceSO: "💡 StackOverflow",
+      sourceManual: "📋 手动输入",
     },
 
     en: {
@@ -157,6 +166,14 @@ const I18n = {
 
       idleText: "Open any webpage and click the button below to generate a summary",
       btnGenerate: "Generate Summary",
+      orManualInput: "or paste text manually",
+      btnManualInput: "📋 Paste Text to Summarize",
+      manualTitle: "Paste Content",
+      manualHint: "Paste video subtitles, document text, or any content",
+      manualPlaceholder: "Paste text content here...",
+      btnManualSubmit: "Generate Summary",
+      btnManualCancel: "Back",
+      manualEmpty: "Please paste content first",
 
       loadingText: "Extracting content and generating summary...",
       loadingSub: "First time may take 10-20 seconds",
@@ -241,6 +258,7 @@ const I18n = {
       sourceYoutube: "▶️ YouTube",
       sourceGithub: "🐙 GitHub",
       sourceSO: "💡 StackOverflow",
+      sourceManual: "📋 Manual Input",
     },
   },
 
@@ -261,6 +279,7 @@ const I18n = {
       youtube: this.t("sourceYoutube"),
       github: this.t("sourceGithub"),
       stackoverflow: this.t("sourceSO"),
+      manual: this.t("sourceManual"),
     };
     return map[type] || this.t("sourceArticle");
   },

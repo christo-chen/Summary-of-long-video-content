@@ -38,7 +38,7 @@ function switchToTab(tabId) {
 
 // ===== 状态管理 =====
 function showState(state) {
-  ["state-idle","state-loading","state-error","state-result"].forEach(id => {
+  ["state-idle","state-manual","state-loading","state-error","state-result"].forEach(id => {
     $(id).classList.add("hidden");
   });
   $("state-" + state).classList.remove("hidden");
@@ -1027,6 +1027,42 @@ $("btn-new").addEventListener("click", () => {
 });
 
 $("btn-settings").addEventListener("click", openSettings);
+
+// ===== 手动输入 =====
+$("btn-show-manual").addEventListener("click", () => {
+  showState("manual");
+  $("manual-textarea").value = "";
+  $("manual-textarea").focus();
+});
+
+$("btn-manual-cancel").addEventListener("click", () => {
+  showState("idle");
+});
+
+$("btn-manual-submit").addEventListener("click", async () => {
+  const text = $("manual-textarea").value.trim();
+  if (!text) {
+    showToast(I18n.t("manualEmpty"));
+    return;
+  }
+
+  showState("loading");
+  $("save-status").classList.add("hidden");
+
+  try {
+    const result = await AiClient.generateSummary("article", text);
+    const url = window.location ? window.location.href : "";
+    lastResult = { ...result, url, sourceType: "manual" };
+
+    renderResult(result, url, "manual");
+    showState("result");
+
+    autoSave(result, url, "article");
+  } catch (err) {
+    console.error("手动输入生成摘要失败：", err);
+    showError(err.message);
+  }
+});
 $("btn-close-settings").addEventListener("click", closeSettings);
 $("btn-save-settings").addEventListener("click", saveSettings);
 $("settings-overlay").addEventListener("click", (e) => {

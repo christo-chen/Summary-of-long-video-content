@@ -71,33 +71,114 @@ const YoutubeExtractor = {
     let captionUrl = track.baseUrl;
     if (!captionUrl) return null;
 
-    if (captionUrl.includes("?")) {
-      captionUrl += "&fmt=json3";
-    } else {
-      captionUrl += "?fmt=json3";
+    // 尝试 JSON 格式
+    let jsonUrl = captionUrl + (captionUrl.includes("?") ? "&" : "?") + "fmt=json3";
+
+    // 第一次尝试：带 Cookie 请求 JSON 格式
+    let subtitleText = await this._downloadSubtitle(jsonUrl, "json");
+
+    // 第二次尝试：不带 fmt 参数，获取默认 XML 格式
+    if (!subtitleText) {
+      console.log("[AI Summary] JSON 格式失败，尝试 XML 格式");
+      subtitleText = await this._downloadSubtitle(captionUrl, "xml");
     }
 
-    const resp = await fetch(captionUrl);
-    if (!resp.ok) {
-      console.warn("[AI Summary] 字幕请求失败:", resp.status);
-      return null;
-    }
-
-    const data = await resp.json();
-    if (!data.events) return null;
-
-    // 解析字幕事件，提取文本
-    const lines = [];
-    for (const event of data.events) {
-      if (event.segs) {
-        const text = event.segs.map(seg => seg.utf8 || "").join("").trim();
-        if (text && text !== "\n") lines.push(text);
+    // 第三次尝试：换一个字幕轨道（比如英文）
+    if (!subtitleText && track.languageCode !== "en") {
+      const enTrack = captionTracks.find(t => t.languageCode === "en" || t.languageCode === "en-US" || t.languageCode === "en-GB");
+      if (enTrack && enTrack.baseUrl) {
+        console.log("[AI Summary] 中文字幕下载失败，尝试英文字幕");
+        let enUrl = enTrack.baseUrl + (enTrack.baseUrl.includes("?") ? "&" : "?") + "fmt=json3";
+        subtitleText = await this._downloadSubtitle(enUrl, "json");
+        if (!subtitleText) {
+          subtitleText = await this._downloadSubtitle(enTrack.baseUrl, "xml");
+        }
       }
     }
 
-    const result = lines.join("\n");
-    console.log("[AI Summary] 提取到字幕长度:", result.length);
-    return result;
+    if (subtitleText) {
+      console.log("[AI Summary] 提取到字幕长度:", subtitleText.length);
+    }
+    return subtitleText;
+  },
+
+  /**
+   * 下载并解析字幕内容，支持 JSON 和 XML 两种格式
+   */
+  async _downloadSubtitle(url, format) {
+    try {
+      const resp = await fetch(url, { credentials: "include" });
+      if (!resp.ok) {
+        console.warn("[AI Summary] 字幕请求失败:", resp.status, url.substring(0, 80));
+        return null;
+      }
+
+      const text = await resp.text();
+      if (!text || text.length < 10) {
+        console.warn("[AI Summary] 字幕响应为空");
+        return null;
+      }
+
+      if (format === "json") {
+        return this._parseJsonSubtitle(text);
+      } else {
+        return this._parseXmlSubtitle(text);
+      }
+    } catch (e) {
+      console.warn("[AI Summary] 字幕下载失败:", e.message);
+      return null;
+    }
+  },
+
+  /**
+   * 解析 JSON 格式字幕（fmt=json3）
+   */
+  _parseJsonSubtitle(text) {
+    try {
+      const data = JSON.parse(text);
+      if (!data.events) return null;
+
+      const lines = [];
+      for (const event of data.events) {
+        if (event.segs) {
+          const line = event.segs.map(seg => seg.utf8 || "").join("").trim();
+          if (line && line !== "\n") lines.push(line);
+        }
+      }
+
+      const result = lines.join("\n");
+      return result.length > 20 ? result : null;
+    } catch (e) {
+      console.warn("[AI Summary] JSON 字幕解析失败:", e.message);
+      return null;
+    }
+  },
+
+  /**
+   * 解析 XML 格式字幕（YouTube 默认格式）
+   */
+  _parseXmlSubtitle(text) {
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(text, "text/xml");
+      const textElements = doc.querySelectorAll("text");
+
+      if (!textElements || textElements.length === 0) return null;
+
+      const lines = [];
+      textElements.forEach(el => {
+        const content = el.textContent.trim();
+        if (content) lines.push(content);
+      });
+
+      const result = lines.join("\n");
+      // 解码 HTML 实体（YouTube XML 字幕中 &amp; &#39; 等）
+      const decoded = result.replace(/&amp;/g, "&").replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+      return decoded.length > 20 ? decoded : null;
+    } catch (e) {
+      console.warn("[AI Summary] XML 字幕解析失败:", e.message);
+      return null;
+    }
   },
 
   /**
@@ -132,10 +213,13 @@ const YoutubeExtractor = {
    * 方法1：从页面 script 标签中用正则提取 captionTracks
    */
   _extractFromPageSource() {
+    const videoId = new URL(window.location.href).searchParams.get("v");
     const scripts = document.querySelectorAll("script");
     for (const script of scripts) {
       const text = script.textContent;
       if (!text || !text.includes("captionTracks")) continue;
+      // 优先匹配包含当前视频 ID 的 script 块，避免拿到推荐视频的字幕
+      if (videoId && !text.includes(videoId)) continue;
 
       try {
         // 用更健壮的方式提取：找到 "captionTracks": 后匹配完整的 JSON 数组
@@ -187,7 +271,7 @@ const YoutubeExtractor = {
       console.log("[AI Summary] 方法2: 正在 fetch 视频页面 HTML, videoId:", videoId);
 
       const resp = await fetch("https://www.youtube.com/watch?v=" + videoId, {
-        credentials: "omit",
+        credentials: "same-origin",
         signal: controller.signal,
       });
       if (!resp.ok) return null;
