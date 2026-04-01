@@ -10,7 +10,7 @@
 // eslint-disable-next-line no-unused-vars
 const BackendApi = {
 
-  BASE_URL: "http://localhost:8080/api",
+  BASE_URL: "http://8.217.204.212:8080/api",
 
   // ===== Token 管理 =====
 
