@@ -7,7 +7,7 @@
 // eslint-disable-next-line no-unused-vars
 const I18n = {
 
-  currentLang: "zh",
+  currentLang: "en",
 
   strings: {
     zh: {
