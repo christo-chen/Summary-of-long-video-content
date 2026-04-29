@@ -52,7 +52,24 @@ const AiClient = {
     const config = await this.getConfig();
 
     if (!config.apiKey) {
-      throw new Error("请先在设置中填写 API Key");
+      // 没有配置 API Key，走后端代理
+      const response = await fetch("http://8.217.204.212:8080/api/ai/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourceType, content }),
+      });
+
+      const result = await response.json();
+
+      if (result.code === 429) {
+        throw new Error("免费额度已用完，请在设置中配置自己的 API Key");
+      }
+
+      if (!response.ok || result.code !== 200) {
+        throw new Error("后端代理请求失败：" + (result.message || response.status));
+      }
+
+      return result.data;
     }
 
     // 根据 provider 选择 baseUrl 和 model
