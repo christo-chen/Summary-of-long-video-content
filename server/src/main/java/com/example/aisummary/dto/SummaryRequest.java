@@ -19,4 +19,7 @@ public class SummaryRequest {
     private String summaryJson;
 
     private String language = "zh";
+
+    // 用户自带的 API Key；有值时跳过免费次数限制
+    private String apiKey;
 }

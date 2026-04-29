@@ -3,6 +3,7 @@ package com.example.aisummary.config;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -34,6 +35,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/auth/**").permitAll()
                 // Notion OAuth 回调不需要登录（通过 state 参数识别用户）
                 .requestMatchers("/api/export/notion/callback").permitAll()
+                // 摘要保存接口支持未登录（免费试用，按 IP 计数）
+                .requestMatchers(HttpMethod.POST, "/api/summaries").permitAll()
                 // 其他所有接口需要登录
                 .anyRequest().authenticated()
             )
