@@ -37,6 +37,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/export/notion/callback").permitAll()
                 // 摘要保存接口支持未登录（免费试用，按 IP 计数）
                 .requestMatchers(HttpMethod.POST, "/api/summaries").permitAll()
+                // AI 生成接口支持未登录（免费试用，按 IP 计数）
+                .requestMatchers(HttpMethod.POST, "/api/ai/generate").permitAll()
                 // 其他所有接口需要登录
                 .anyRequest().authenticated()
             )
