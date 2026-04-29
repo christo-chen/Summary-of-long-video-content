@@ -1,6 +1,7 @@
 package com.example.aisummary.config;
 
 import com.example.aisummary.dto.Result;
+import com.example.aisummary.exception.UsageLimitExceededException;
 import org.springframework.http.HttpStatus;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -13,6 +14,12 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(UsageLimitExceededException.class)
+    @ResponseStatus(HttpStatus.TOO_MANY_REQUESTS)
+    public Result<?> handleUsageLimitExceeded(UsageLimitExceededException e) {
+        return Result.error(429, e.getMessage());
+    }
 
     /**
      * 处理业务异常
