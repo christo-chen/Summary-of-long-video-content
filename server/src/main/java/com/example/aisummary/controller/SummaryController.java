@@ -8,10 +8,12 @@ import com.example.aisummary.service.UsageLimitService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/summaries")
 @RequiredArgsConstructor
@@ -36,10 +38,12 @@ public class SummaryController {
         }
 
         if (userId == null) {
+            log.info("Summary save: userId=null (guest) sourceType={}", request.getSourceType());
             return Result.success(null);
         }
 
         Summary summary = summaryService.saveSummary(userId, request);
+        log.info("Summary save: userId={} sourceType={}", userId, request.getSourceType());
         return Result.success(summary);
     }
 
