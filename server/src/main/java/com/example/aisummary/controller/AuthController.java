@@ -4,9 +4,11 @@ import com.example.aisummary.dto.*;
 import com.example.aisummary.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
@@ -20,8 +22,14 @@ public class AuthController {
      */
     @PostMapping("/register")
     public Result<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
-        AuthResponse response = authService.register(request);
-        return Result.success(response);
+        try {
+            AuthResponse response = authService.register(request);
+            log.info("Register success: email={}", request.getEmail());
+            return Result.success(response);
+        } catch (RuntimeException e) {
+            log.warn("Register failed: email={} reason={}", request.getEmail(), e.getMessage());
+            throw e;
+        }
     }
 
     /**
@@ -30,8 +38,14 @@ public class AuthController {
      */
     @PostMapping("/login")
     public Result<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
-        AuthResponse response = authService.login(request);
-        return Result.success(response);
+        try {
+            AuthResponse response = authService.login(request);
+            log.info("Login success: email={}", request.getEmail());
+            return Result.success(response);
+        } catch (RuntimeException e) {
+            log.warn("Login failed: email={} reason={}", request.getEmail(), e.getMessage());
+            throw e;
+        }
     }
 
     /**

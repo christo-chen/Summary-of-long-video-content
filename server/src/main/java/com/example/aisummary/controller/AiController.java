@@ -7,10 +7,12 @@ import com.example.aisummary.service.UsageLimitService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/ai")
 @RequiredArgsConstructor
@@ -29,10 +31,20 @@ public class AiController {
                                    HttpServletRequest httpRequest,
                                    Authentication authentication) {
         Long userId = authentication != null ? (Long) authentication.getPrincipal() : null;
+        String ip = getClientIp(httpRequest);
+        long start = System.currentTimeMillis();
 
-        usageLimitService.checkAndIncrement(userId, getClientIp(httpRequest));
+        usageLimitService.checkAndIncrement(userId, ip);
 
         Object result = aiProxyService.generate(request.getSourceType(), request.getContent());
+
+        log.info("AI generate: sourceType={} contentLen={} ip={} loggedIn={} elapsed={}ms",
+                request.getSourceType(),
+                request.getContent() == null ? 0 : request.getContent().length(),
+                ip,
+                userId != null,
+                System.currentTimeMillis() - start);
+
         return Result.success(result);
     }
 
