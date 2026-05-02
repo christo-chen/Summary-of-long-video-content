@@ -131,6 +131,16 @@ const I18n = {
       langZh: "中文",
       langEn: "English",
 
+      // 错误提示
+      errorFreeQuotaExhausted: "免费额度已用完，请在设置中配置自己的 API Key",
+      errorProxyFailed: "后端代理请求失败",
+
+      // 加载状态
+      aiLoadingText: "AI 正在分析内容...",
+
+      // 设置引导
+      btnGoToSettings: "前往设置",
+
       // 翻译
       translateFailed: "翻译失败：",
 
@@ -250,6 +260,13 @@ const I18n = {
       settingsLang: "Language",
       langZh: "中文",
       langEn: "English",
+
+      errorFreeQuotaExhausted: "Free quota exhausted, please configure your own API Key in Settings",
+      errorProxyFailed: "Backend proxy request failed",
+
+      aiLoadingText: "AI is analyzing the content...",
+
+      btnGoToSettings: "Go to Settings",
 
       translateFailed: "Translation failed: ",
 

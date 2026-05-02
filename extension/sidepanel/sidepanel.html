@@ -76,7 +76,7 @@
       <!-- 加载状态 -->
       <div id="state-loading" class="state hidden">
         <div class="loader"></div>
-        <p class="loading-text" data-i18n="loadingText">正在提取内容并生成摘要...</p>
+        <p id="loading-text-main" class="loading-text" data-i18n="loadingText">正在提取内容并生成摘要...</p>
         <p class="loading-sub" data-i18n="loadingSub">首次使用可能需要 10-20 秒</p>
       </div>
 
@@ -85,6 +85,7 @@
         <div class="error-icon">❌</div>
         <p id="error-message" class="error-text"></p>
         <button id="btn-retry" class="btn-primary" data-i18n="btnRetry">重试</button>
+        <button id="btn-error-goto-settings" class="btn-secondary hidden" style="margin-top:8px" data-i18n="btnGoToSettings">前往设置</button>
       </div>
 
       <!-- 结果状态 -->

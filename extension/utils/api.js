@@ -62,11 +62,13 @@ const AiClient = {
       const result = await response.json();
 
       if (result.code === 429) {
-        throw new Error("免费额度已用完，请在设置中配置自己的 API Key");
+        const err = new Error(I18n.t("errorFreeQuotaExhausted"));
+        err.isQuotaExhausted = true;
+        throw err;
       }
 
       if (!response.ok || result.code !== 200) {
-        throw new Error("后端代理请求失败：" + (result.message || response.status));
+        throw new Error(I18n.t("errorProxyFailed") + "：" + (result.message || response.status));
       }
 
       return result.data;
