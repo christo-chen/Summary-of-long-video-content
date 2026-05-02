@@ -44,8 +44,14 @@ function showState(state) {
   $("state-" + state).classList.remove("hidden");
 }
 
-function showError(msg) {
+function showError(msg, showSettingsBtn = false) {
   $("error-message").textContent = msg;
+  const settingsBtn = $("btn-error-goto-settings");
+  if (showSettingsBtn) {
+    settingsBtn.classList.remove("hidden");
+  } else {
+    settingsBtn.classList.add("hidden");
+  }
   showState("error");
 }
 
@@ -167,6 +173,7 @@ const SOURCE_TYPE_COLORS = {
 
 async function generateSummary() {
   showState("loading");
+  $("loading-text-main").textContent = I18n.t("loadingText");
   $("save-status").classList.add("hidden");
 
   try {
@@ -185,6 +192,9 @@ async function generateSummary() {
     }
 
     const { title, content, url, sourceType } = extractResponse.data;
+
+    $("loading-text-main").textContent = I18n.t("aiLoadingText");
+
     const result = await AiClient.generateSummary(sourceType, content);
     lastResult = { ...result, url, sourceType };
 
@@ -196,7 +206,7 @@ async function generateSummary() {
 
   } catch (err) {
     console.error("生成摘要失败：", err);
-    showError(err.message);
+    showError(err.message, err.isQuotaExhausted);
   }
 }
 
@@ -1027,6 +1037,7 @@ $("btn-new").addEventListener("click", () => {
 });
 
 $("btn-settings").addEventListener("click", openSettings);
+$("btn-error-goto-settings").addEventListener("click", openSettings);
 
 // ===== 手动输入 =====
 $("btn-show-manual").addEventListener("click", () => {
@@ -1060,7 +1071,7 @@ $("btn-manual-submit").addEventListener("click", async () => {
     autoSave(result, url, "article");
   } catch (err) {
     console.error("手动输入生成摘要失败：", err);
-    showError(err.message);
+    showError(err.message, err.isQuotaExhausted);
   }
 });
 $("btn-close-settings").addEventListener("click", closeSettings);
