@@ -5,7 +5,7 @@
  * 1. 从页面 HTML 中提取 ytInitialPlayerResponse 的字幕轨道
  * 2. 从 YouTube player API (ytplayer.config) 获取字幕轨道
  * 3. 请求字幕 JSON，解析为纯文本
- * 4. 如果没有字幕，降级提取视频描述
+ * 4. 如果没有字幕，交给后端 yt-dlp 字幕提取兜底
  */
 
 // eslint-disable-next-line no-unused-vars
@@ -39,7 +39,7 @@ const YoutubeExtractor = {
       console.warn("[AI Summary] YouTube 字幕获取失败：", e);
     }
 
-    return this._fallbackExtract(title, url);
+    return this._transcriptUnavailable(title, url);
   },
 
   _getTitle() {
@@ -316,23 +316,13 @@ const YoutubeExtractor = {
     return null;
   },
 
-  _fallbackExtract(title, url) {
-    let desc = "";
-    const descEl = document.querySelector("#description-text") ||
-                   document.querySelector("ytd-text-inline-expander") ||
-                   document.querySelector('[id="description"]') ||
-                   document.querySelector("#info-container");
-    if (descEl) desc = descEl.textContent.trim();
-
-    if (!desc || desc.length < 20) {
-      desc = "（该视频无字幕且描述过短，请手动复制视频内容后粘贴）";
-    }
-
+  _transcriptUnavailable(title, url) {
     return {
       title: title,
-      content: "[YouTube 视频描述]\n\n" + desc,
+      content: null,
       url: url,
       sourceType: "youtube",
+      transcriptUnavailable: true,
     };
   },
 

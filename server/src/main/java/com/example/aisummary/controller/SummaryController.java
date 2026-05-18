@@ -4,13 +4,10 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.example.aisummary.dto.*;
 import com.example.aisummary.entity.Summary;
 import com.example.aisummary.service.SummaryService;
-import com.example.aisummary.service.UsageLimitService;
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
-import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 @Slf4j
@@ -20,22 +17,16 @@ import org.springframework.web.bind.annotation.*;
 public class SummaryController {
 
     private final SummaryService summaryService;
-    private final UsageLimitService usageLimitService;
 
     /**
      * 保存摘要
      * POST /api/summaries
-     * 支持未登录调用（免费试用）：无 apiKey 时按 userId/IP 计数；未登录不落库。
+     * 支持未登录调用；未登录不落库。
      */
     @PostMapping
     public Result<Summary> save(@Valid @RequestBody SummaryRequest request,
-                                HttpServletRequest httpRequest,
                                 Authentication authentication) {
         Long userId = authentication != null ? (Long) authentication.getPrincipal() : null;
-
-        if (!StringUtils.hasText(request.getApiKey())) {
-            usageLimitService.checkAndIncrement(userId, getClientIp(httpRequest));
-        }
 
         if (userId == null) {
             log.info("Summary save: userId=null (guest) sourceType={}", request.getSourceType());
@@ -45,14 +36,6 @@ public class SummaryController {
         Summary summary = summaryService.saveSummary(userId, request);
         log.info("Summary save: userId={} sourceType={}", userId, request.getSourceType());
         return Result.success(summary);
-    }
-
-    private String getClientIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (StringUtils.hasText(forwarded)) {
-            return forwarded.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
     }
 
     /**

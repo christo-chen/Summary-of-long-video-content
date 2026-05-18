@@ -72,6 +72,7 @@ const I18n = {
       savedToCloud: "✅ 已保存到云端",
       loginToSave: "💡 登录后可自动保存到云端",
       saveFailed: "⚠️ 保存失败：",
+      backendProxySoftReminder: "你仍然可以继续使用默认 AI 服务。为了获得更稳定的长期使用体验，建议你在右上角设置中配置自己的 API Key。",
 
       // 导出
       exportNotionLogin: "请先登录后再导出",
@@ -134,6 +135,7 @@ const I18n = {
       // 错误提示
       errorFreeQuotaExhausted: "免费额度已用完，请在设置中配置自己的 API Key",
       errorProxyFailed: "后端代理请求失败",
+      videoNoTranscript: "当前视频没有检测到可用字幕/转录文本，因此无法准确总结视频内容。为了避免生成不准确内容，本次不会仅根据标题或简介生成总结。",
 
       // 加载状态
       aiLoadingText: "AI 正在分析内容...",
@@ -261,8 +263,10 @@ const I18n = {
       langZh: "中文",
       langEn: "English",
 
+      backendProxySoftReminder: "You can continue using the default AI service. For more stable long-term use, we recommend adding your own API key from the top-right Settings.",
       errorFreeQuotaExhausted: "Free quota exhausted, please configure your own API Key in Settings",
       errorProxyFailed: "Backend proxy request failed",
+      videoNoTranscript: "No usable subtitles/transcript were detected for this video, so it cannot be summarized accurately. To avoid inaccurate output, this summary will not be generated from only the title or description.",
 
       aiLoadingText: "AI is analyzing the content...",
 

@@ -1,7 +1,6 @@
 package com.example.aisummary.service;
 
 import com.example.aisummary.entity.UsageRecord;
-import com.example.aisummary.exception.UsageLimitExceededException;
 import com.example.aisummary.mapper.UsageRecordMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -62,42 +61,34 @@ class UsageLimitServiceTest {
     }
 
     @Test
-    void loggedIn_secondUse_incrementsAndAllows() {
+    void loggedIn_secondUse_incrementsAndReturnsCount() {
         when(usageRecordMapper.selectByUserId(USER_ID)).thenReturn(userRecord(1));
-        when(usageRecordMapper.incrementIfBelowLimit(1L, UsageLimitService.FREE_USAGE_LIMIT)).thenReturn(1);
+        when(usageRecordMapper.increment(1L)).thenReturn(1);
 
-        assertThatCode(() -> usageLimitService.checkAndIncrement(USER_ID, IP))
-                .doesNotThrowAnyException();
+        int usedCount = usageLimitService.recordAndGetUsedCount(USER_ID, IP);
 
-        verify(usageRecordMapper).incrementIfBelowLimit(1L, UsageLimitService.FREE_USAGE_LIMIT);
+        assertThat(usedCount).isEqualTo(2);
+        verify(usageRecordMapper).increment(1L);
     }
 
     @Test
-    void loggedIn_thirdUse_incrementsAndAllows() {
+    void loggedIn_thirdUse_incrementsAndReturnsReminderThreshold() {
         when(usageRecordMapper.selectByUserId(USER_ID)).thenReturn(userRecord(2));
-        when(usageRecordMapper.incrementIfBelowLimit(1L, UsageLimitService.FREE_USAGE_LIMIT)).thenReturn(1);
+        when(usageRecordMapper.increment(1L)).thenReturn(1);
 
-        assertThatCode(() -> usageLimitService.checkAndIncrement(USER_ID, IP))
-                .doesNotThrowAnyException();
+        int usedCount = usageLimitService.recordAndGetUsedCount(USER_ID, IP);
+
+        assertThat(usedCount).isEqualTo(UsageLimitService.SOFT_REMINDER_THRESHOLD);
     }
 
     @Test
-    void loggedIn_fourthUse_throwsUsageLimitExceeded() {
+    void loggedIn_fourthUse_continuesAndReturnsCount() {
         when(usageRecordMapper.selectByUserId(USER_ID)).thenReturn(userRecord(3));
+        when(usageRecordMapper.increment(1L)).thenReturn(1);
 
-        assertThatThrownBy(() -> usageLimitService.checkAndIncrement(USER_ID, IP))
-                .isInstanceOf(UsageLimitExceededException.class)
-                .hasMessageContaining("API Key");
-    }
+        int usedCount = usageLimitService.recordAndGetUsedCount(USER_ID, IP);
 
-    @Test
-    void loggedIn_concurrentRace_incrementReturnsZero_throwsUsageLimitExceeded() {
-        // 读到 count=2（还没超限），但 UPDATE 被并发抢先，实际影响行数为 0
-        when(usageRecordMapper.selectByUserId(USER_ID)).thenReturn(userRecord(2));
-        when(usageRecordMapper.incrementIfBelowLimit(1L, UsageLimitService.FREE_USAGE_LIMIT)).thenReturn(0);
-
-        assertThatThrownBy(() -> usageLimitService.checkAndIncrement(USER_ID, IP))
-                .isInstanceOf(UsageLimitExceededException.class);
+        assertThat(usedCount).isEqualTo(4);
     }
 
     // ---- 未登录用户（按 IP 计数）----
@@ -114,10 +105,12 @@ class UsageLimitServiceTest {
     }
 
     @Test
-    void anonymous_hitLimit_throwsUsageLimitExceeded() {
+    void anonymous_hitLimit_continuesAndReturnsCount() {
         when(usageRecordMapper.selectByIpAddress(IP)).thenReturn(ipRecord(3));
+        when(usageRecordMapper.increment(2L)).thenReturn(1);
 
-        assertThatThrownBy(() -> usageLimitService.checkAndIncrement(null, IP))
-                .isInstanceOf(UsageLimitExceededException.class);
+        int usedCount = usageLimitService.recordAndGetUsedCount(null, IP);
+
+        assertThat(usedCount).isEqualTo(4);
     }
 }

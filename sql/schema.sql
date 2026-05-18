@@ -54,3 +54,16 @@ CREATE TABLE IF NOT EXISTS `summary_tag` (
     CONSTRAINT `fk_st_summary` FOREIGN KEY (`summary_id`) REFERENCES `summary` (`id`) ON DELETE CASCADE,
     CONSTRAINT `fk_st_tag` FOREIGN KEY (`tag_id`) REFERENCES `tag` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='摘要-标签关联表';
+
+-- 免费额度使用记录表
+CREATE TABLE IF NOT EXISTS `usage_record` (
+    `id`          BIGINT      NOT NULL AUTO_INCREMENT COMMENT '主键',
+    `user_id`     BIGINT      DEFAULT NULL            COMMENT '用户ID（已登录用户）',
+    `ip_address`  VARCHAR(64) DEFAULT NULL            COMMENT 'IP地址（未登录用户）',
+    `used_count`  INT         NOT NULL DEFAULT 0      COMMENT '已使用次数',
+    `created_at`  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at`  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_user_id` (`user_id`),
+    UNIQUE KEY `uk_ip_address` (`ip_address`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='免费额度使用记录表';

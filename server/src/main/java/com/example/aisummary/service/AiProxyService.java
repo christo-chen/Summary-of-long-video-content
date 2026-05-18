@@ -25,7 +25,7 @@ import java.util.Map;
 public class AiProxyService {
 
     private static final String DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions";
-    private static final String MODEL        = "deepseek-chat";
+    private static final String MODEL        = "deepseek-v4-flash";
     private static final int    MAX_CONTENT_LENGTH = 50_000;
 
     @Value("${DEEPSEEK_API_KEY:}")

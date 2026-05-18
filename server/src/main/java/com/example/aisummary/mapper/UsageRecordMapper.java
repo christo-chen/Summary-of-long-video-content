@@ -22,4 +22,7 @@ public interface UsageRecordMapper extends BaseMapper<UsageRecord> {
      */
     @Update("UPDATE usage_record SET used_count = used_count + 1 WHERE id = #{id} AND used_count < #{limit}")
     int incrementIfBelowLimit(@Param("id") Long id, @Param("limit") int limit);
+
+    @Update("UPDATE usage_record SET used_count = used_count + 1 WHERE id = #{id}")
+    int increment(@Param("id") Long id);
 }
