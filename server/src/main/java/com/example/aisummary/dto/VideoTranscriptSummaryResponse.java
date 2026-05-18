@@ -26,4 +26,9 @@ public class VideoTranscriptSummaryResponse {
     public static VideoTranscriptSummaryResponse noTranscript(String message) {
         return new VideoTranscriptSummaryResponse(false, null, null, null, "NO_TRANSCRIPT_AVAILABLE", message);
     }
+
+    public static VideoTranscriptSummaryResponse invalidVideoUrl() {
+        return new VideoTranscriptSummaryResponse(false, null, null, null,
+                "INVALID_VIDEO_URL", "Unsupported or invalid video URL.");
+    }
 }
