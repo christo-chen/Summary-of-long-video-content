@@ -175,6 +175,7 @@ async function generateSummary() {
   showState("loading");
   $("loading-text-main").textContent = I18n.t("loadingText");
   $("save-status").classList.add("hidden");
+  $("proxy-reminder").classList.add("hidden");
 
   try {
     const extractResponse = await new Promise((resolve, reject) => {
@@ -195,11 +196,14 @@ async function generateSummary() {
 
     $("loading-text-main").textContent = I18n.t("aiLoadingText");
 
-    const result = await AiClient.generateSummary(sourceType, content);
+    const result = extractResponse.data.transcriptUnavailable
+      ? await AiClient.generateVideoTranscriptSummary(url, sourceType)
+      : await AiClient.generateSummary(sourceType, content);
     lastResult = { ...result, url, sourceType };
 
     renderResult(result, url, sourceType);
     showState("result");
+    showProxyReminderIfNeeded(result);
 
     // 自动保存到后端
     autoSave(result, url, sourceType);
@@ -208,6 +212,16 @@ async function generateSummary() {
     console.error("生成摘要失败：", err);
     showError(err.message, err.isQuotaExhausted);
   }
+}
+
+function showProxyReminderIfNeeded(result) {
+  if (!result.__showSoftReminder) {
+    $("proxy-reminder").classList.add("hidden");
+    return;
+  }
+
+  $("proxy-reminder-text").textContent = I18n.t("backendProxySoftReminder");
+  $("proxy-reminder").classList.remove("hidden");
 }
 
 async function autoSave(result, url, sourceType) {
@@ -1033,6 +1047,7 @@ $("btn-new").addEventListener("click", () => {
   $("btn-translate").textContent = I18n.t("btnTranslate");
   $("btn-translate").disabled = false;
   $("save-status").classList.add("hidden");
+  $("proxy-reminder").classList.add("hidden");
   showState("idle");
 });
 
@@ -1059,6 +1074,7 @@ $("btn-manual-submit").addEventListener("click", async () => {
 
   showState("loading");
   $("save-status").classList.add("hidden");
+  $("proxy-reminder").classList.add("hidden");
 
   try {
     const result = await AiClient.generateSummary("article", text);
@@ -1067,6 +1083,7 @@ $("btn-manual-submit").addEventListener("click", async () => {
 
     renderResult(result, url, "manual");
     showState("result");
+    showProxyReminderIfNeeded(result);
 
     autoSave(result, url, "article");
   } catch (err) {
@@ -1086,15 +1103,9 @@ $("settings-overlay").addEventListener("click", (e) => {
   await I18n.load();
   I18n.applyToUI();
 
-  const config = await AiClient.getConfig();
   const loggedIn = await BackendApi.isLoggedIn();
 
   await updateAuthUI();
-
-  // 没设置 API Key 则打开设置
-  if (!config.apiKey) {
-    setTimeout(openSettings, 300);
-  }
 
   // 未登录且首次使用，显示登录页
   if (!loggedIn) {

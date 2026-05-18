@@ -6,7 +6,7 @@
  * 2. 通过 B站 player API 获取字幕列表
  * 3. 下载字幕 JSON，拼接为纯文本
  *
- * 如果没有 CC 字幕（很多视频没有），则降级提取视频简介作为内容
+ * 如果没有 CC 字幕（很多视频没有），则交给后端 yt-dlp 字幕提取兜底
  */
 
 // eslint-disable-next-line no-unused-vars
@@ -37,8 +37,7 @@ const BilibiliExtractor = {
     const { bvid, cid } = this._getVideoIds();
 
     if (!bvid || !cid) {
-      // 降级：提取视频简介
-      return this._fallbackExtract(title, url);
+      return this._transcriptUnavailable(title, url);
     }
 
     try {
@@ -56,8 +55,7 @@ const BilibiliExtractor = {
       console.warn("B站字幕获取失败，降级到简介提取：", e);
     }
 
-    // 没有字幕，降级到简介
-    return this._fallbackExtract(title, url);
+    return this._transcriptUnavailable(title, url);
   },
 
   /**
@@ -146,27 +144,15 @@ const BilibiliExtractor = {
   },
 
   /**
-   * 降级方案：提取视频简介
+   * 字幕不可用：不使用标题/简介伪造视频总结
    */
-  _fallbackExtract(title, url) {
-    let desc = "";
-
-    // 尝试获取视频简介
-    const descEl = document.querySelector(".basic-desc-info") ||
-                   document.querySelector('[class*="desc"]') ||
-                   document.querySelector(".video-desc");
-    if (descEl) desc = descEl.textContent.trim();
-
-    // 如果简介也没有，尝试获取评论区热评
-    if (!desc || desc.length < 20) {
-      desc = "（该视频无字幕且简介过短，请手动复制视频内容后粘贴）";
-    }
-
+  _transcriptUnavailable(title, url) {
     return {
       title: title,
-      content: "[B站视频简介]\n\n" + desc,
+      content: null,
       url: url,
       sourceType: "bilibili",
+      transcriptUnavailable: true,
     };
   },
 

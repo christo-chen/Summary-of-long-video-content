@@ -18,7 +18,7 @@ const AiClient = {
     openaiModel: "gpt-4o-mini",
     openaiBaseUrl: "https://api.openai.com/v1",
     // DeepSeek
-    deepseekModel: "deepseek-chat",
+    deepseekModel: "deepseek-v4-flash",
     deepseekBaseUrl: "https://api.deepseek.com/v1",
   },
 
@@ -61,17 +61,18 @@ const AiClient = {
 
       const result = await response.json();
 
-      if (result.code === 429) {
-        const err = new Error(I18n.t("errorFreeQuotaExhausted"));
-        err.isQuotaExhausted = true;
-        throw err;
-      }
-
       if (!response.ok || result.code !== 200) {
         throw new Error(I18n.t("errorProxyFailed") + "：" + (result.message || response.status));
       }
 
-      return result.data;
+      const summary = result.data?.summary || result.data;
+      if (summary && typeof summary === "object") {
+        Object.defineProperty(summary, "__showSoftReminder", {
+          value: Boolean(result.data?.showSoftReminder),
+          enumerable: false,
+        });
+      }
+      return summary;
     }
 
     // 根据 provider 选择 baseUrl 和 model
@@ -111,6 +112,27 @@ const AiClient = {
 
     // 解析 AI 返回的 JSON
     return this._parseResponse(text);
+  },
+
+  async generateVideoTranscriptSummary(videoUrl, sourceType) {
+    const response = await fetch(BackendApi.BASE_URL + "/video/transcript-summary", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ videoUrl, sourceType }),
+    });
+
+    const result = await response.json();
+    if (!response.ok || result.code !== 200) {
+      throw new Error(I18n.t("errorProxyFailed") + "：" + (result.message || response.status));
+    }
+
+    if (!result.data?.success) {
+      const err = new Error(result.data?.message || I18n.t("videoNoTranscript"));
+      err.noTranscriptAvailable = result.data?.error === "NO_TRANSCRIPT_AVAILABLE";
+      throw err;
+    }
+
+    return result.data.summary;
   },
 
   /**

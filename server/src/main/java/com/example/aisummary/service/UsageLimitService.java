@@ -1,7 +1,6 @@
 package com.example.aisummary.service;
 
 import com.example.aisummary.entity.UsageRecord;
-import com.example.aisummary.exception.UsageLimitExceededException;
 import com.example.aisummary.mapper.UsageRecordMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -11,17 +10,17 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class UsageLimitService {
 
-    static final int FREE_USAGE_LIMIT = 3;
+    public static final int SOFT_REMINDER_THRESHOLD = 3;
+    static final int FREE_USAGE_LIMIT = SOFT_REMINDER_THRESHOLD;
 
     private final UsageRecordMapper usageRecordMapper;
 
     /**
-     * 检查并递增使用次数。
+     * 记录使用次数并返回当前已使用次数。
      * 已登录时按 userId 查，未登录时按 ipAddress 查。
-     * 超限或并发竞争导致无法递增时抛出 UsageLimitExceededException。
      */
     @Transactional
-    public void checkAndIncrement(Long userId, String ipAddress) {
+    public int recordAndGetUsedCount(Long userId, String ipAddress) {
         UsageRecord record = userId != null
                 ? usageRecordMapper.selectByUserId(userId)
                 : usageRecordMapper.selectByIpAddress(ipAddress);
@@ -32,17 +31,18 @@ public class UsageLimitService {
             newRecord.setIpAddress(userId == null ? ipAddress : null);
             newRecord.setUsedCount(1);
             usageRecordMapper.insert(newRecord);
-            return;
+            return 1;
         }
 
-        if (record.getUsedCount() >= FREE_USAGE_LIMIT) {
-            throw new UsageLimitExceededException();
-        }
+        usageRecordMapper.increment(record.getId());
+        return record.getUsedCount() + 1;
+    }
 
-        // WHERE used_count < LIMIT 确保并发场景下不会超限
-        int updated = usageRecordMapper.incrementIfBelowLimit(record.getId(), FREE_USAGE_LIMIT);
-        if (updated == 0) {
-            throw new UsageLimitExceededException();
-        }
+    /**
+     * Backward-compatible entry point for existing callers/tests.
+     */
+    @Transactional
+    public void checkAndIncrement(Long userId, String ipAddress) {
+        recordAndGetUsedCount(userId, ipAddress);
     }
 }

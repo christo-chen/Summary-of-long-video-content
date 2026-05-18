@@ -18,6 +18,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         ExtractorFactory.extractAsync(result.sourceType).then(asyncResult => {
           if (asyncResult && asyncResult.content) {
             sendResponse({ success: true, data: asyncResult });
+          } else if (asyncResult && asyncResult.transcriptUnavailable) {
+            sendResponse({ success: true, data: asyncResult });
           } else {
             sendResponse({
               success: false,
