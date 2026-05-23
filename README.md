@@ -16,13 +16,14 @@
 ## ✨ Features
 
 - 📄 Extract main content from any webpage (Readability.js)
-- 🎬 Extract subtitles from Bilibili videos
-- 🧠 AI-generated structured summaries via DeepSeek API
-- 🗺️ Interactive mind maps with Markmap
-- 🌐 Bilingual output (Chinese/English)
+- 📦 Summarize GitHub repositories and technical pages
+- 🧠 AI-generated structured summaries, mind maps, and translations via DeepSeek API
+- 🎬 Subtitle-based video summary for YouTube/Bilibili, with backend yt-dlp fallback
+- 🚫 Prevent fake video summaries when no real transcript is available
+- 🔓 Free default AI proxy with soft reminder after 3 uses (no hard block)
 - 📒 Sync to Notion via OAuth / Export to Obsidian & Logseq
 - 🔐 JWT + BCrypt authentication
-- 🎁 Free trial: 3 AI summaries per user (no API key needed)
+- 💾 MySQL-backed summary history, tags, and usage records
 
 ## 📸 Screenshots
 
@@ -41,7 +42,9 @@ graph LR
     B -->|CRUD| D[(MySQL)]
     B -->|OAuth| E[Notion API]
     A -->|Readability.js| F[Web Page]
-    A -->|Subtitle Extract| G[Bilibili]
+    A -->|Subtitle Extract| G[YouTube / Bilibili]
+    G -->|Fallback| H[Backend yt-dlp]
+    H --> B
 ```
 
 ## 🛠️ Tech Stack
@@ -53,7 +56,7 @@ graph LR
 | AI | DeepSeek API (via backend proxy) |
 | Auth | JWT + BCrypt, Notion OAuth 2.0 |
 | Deployment | Alibaba Cloud ECS (Ubuntu 24.04) |
-| Testing | JUnit 5 + Mockito (24 unit tests) |
+| Testing | JUnit 5 + Mockito |
 
 ## 🚀 Getting Started
 
@@ -63,6 +66,7 @@ graph LR
 - MySQL 8.0+
 - Node.js (for extension development, optional)
 - Chrome browser
+- yt-dlp (required for backend video transcript fallback)
 
 ### Backend Setup
 
@@ -95,16 +99,19 @@ Summary-of-long-video-content/
 ## 🗺️ Roadmap
 
 - [x] Web page content extraction (Readability.js)
-- [x] Bilibili subtitle extraction
+- [x] GitHub repository summary
 - [x] AI-powered summary generation
 - [x] Mind map visualization (Markmap)
 - [x] User authentication (JWT + BCrypt)
 - [x] Notion OAuth integration
 - [x] Obsidian & Logseq export
-- [x] Free trial quota system (3 uses/user)
-- [x] Backend unit tests (24 tests)
+- [x] Free AI proxy with soft usage reminder
+- [x] Subtitle-based YouTube/Bilibili video summary implementation
+- [x] Video URL whitelist validation
+- [x] Backend unit tests with JUnit 5 + Mockito
 - [x] Production deployment (Alibaba Cloud)
-- [ ] YouTube subtitle extraction
+- [ ] Deploy latest backend with yt-dlp support
+- [ ] Production validation for video transcript fallback
 - [ ] Chrome Web Store publication
 - [ ] More AI model options
 

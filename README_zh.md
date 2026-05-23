@@ -15,14 +15,15 @@
 
 ## ✨ 功能特性
 
-- 📄 提取任意网页的主要内容（Readability.js）
-- 🎬 提取哔哩哔哩视频字幕
-- 🧠 通过 DeepSeek API 生成 AI 结构化摘要
-- 🗺️ 基于 Markmap 的交互式思维导图
-- 🌐 中英双语输出
-- 📒 通过 OAuth 同步至 Notion / 导出至 Obsidian 和 Logseq
+- 📄 使用 Readability.js 提取网页正文
+- 📦 支持 GitHub 仓库和技术页面摘要
+- 🧠 通过 DeepSeek API 生成结构化摘要、思维导图和多语言翻译
+- 🎬 基于字幕的 YouTube/Bilibili 视频摘要，后端 yt-dlp 兜底
+- 🚫 无真实字幕时拒绝生成虚假摘要
+- 🔓 默认 AI 服务持续可用，3 次后仅软提示配置自己的 API Key
+- 📒 Notion OAuth 同步 / Obsidian & Logseq 导出
 - 🔐 JWT + BCrypt 用户认证
-- 🎁 免费试用：每位用户 3 次 AI 摘要（无需 API 密钥）
+- 💾 MySQL 存储摘要历史、标签和使用记录
 
 ## 📸 截图展示
 
@@ -41,7 +42,9 @@ graph LR
     B -->|CRUD| D[(MySQL)]
     B -->|OAuth| E[Notion API]
     A -->|Readability.js| F[网页]
-    A -->|字幕提取| G[哔哩哔哩]
+    A -->|字幕提取| G[YouTube / Bilibili]
+    G -->|兜底| H[后端 yt-dlp]
+    H --> B
 ```
 
 ## 🛠️ 技术栈
@@ -53,7 +56,7 @@ graph LR
 | AI | DeepSeek API（通过后端代理） |
 | 认证 | JWT + BCrypt、Notion OAuth 2.0 |
 | 部署 | 阿里云 ECS（Ubuntu 24.04） |
-| 测试 | JUnit 5 + Mockito（24 个单元测试） |
+| 测试 | JUnit 5 + Mockito |
 
 ## 🚀 快速开始
 
@@ -63,6 +66,7 @@ graph LR
 - MySQL 8.0+
 - Node.js（用于扩展开发，可选）
 - Chrome 浏览器
+- yt-dlp（后端视频字幕兜底所需）
 
 ### 后端启动
 
@@ -95,16 +99,19 @@ Summary-of-long-video-content/
 ## 🗺️ 开发路线图
 
 - [x] 网页内容提取（Readability.js）
-- [x] 哔哩哔哩字幕提取
+- [x] GitHub 仓库摘要
 - [x] AI 驱动的摘要生成
 - [x] 思维导图可视化（Markmap）
 - [x] 用户认证（JWT + BCrypt）
 - [x] Notion OAuth 集成
 - [x] Obsidian 和 Logseq 导出
-- [x] 免费试用配额系统（每用户 3 次）
-- [x] 后端单元测试（24 个测试）
+- [x] 免费 AI 代理及软性用量提醒
+- [x] 基于字幕的 YouTube/Bilibili 视频摘要实现
+- [x] 视频 URL 白名单校验
+- [x] 后端单元测试（JUnit 5 + Mockito）
 - [x] 生产环境部署（阿里云）
-- [ ] YouTube 字幕提取
+- [ ] 部署包含 yt-dlp 支持的最新后端
+- [ ] 视频字幕兜底功能生产验证
 - [ ] Chrome 网上应用店发布
 - [ ] 更多 AI 模型选项
 
