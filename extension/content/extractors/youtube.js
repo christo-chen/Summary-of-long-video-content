@@ -2,14 +2,18 @@
  * YouTube 视频字幕提取器
  *
  * 提取思路：
- * 1. 从页面 HTML 中提取 ytInitialPlayerResponse 的字幕轨道
- * 2. 从 YouTube player API (ytplayer.config) 获取字幕轨道
- * 3. 请求字幕 JSON，解析为纯文本
- * 4. 如果没有字幕，交给后端 yt-dlp 字幕提取兜底
+ * 1. 从页面主世界中的播放器响应读取字幕轨道
+ * 2. 从页面 HTML 中扫描字幕轨道作为兼容兜底
+ * 3. 通过浏览器侧 InnerTube player API 获取字幕轨道
+ * 4. 请求字幕 JSON/XML/VTT，解析为纯文本
+ * 5. 如果没有字幕，交给后端 yt-dlp 字幕提取兜底
  */
 
 // eslint-disable-next-line no-unused-vars
 const YoutubeExtractor = {
+
+  MIN_TRANSCRIPT_LENGTH: 50,
+  lastFailureReason: null,
 
   extract() {
     return {
@@ -24,10 +28,17 @@ const YoutubeExtractor = {
   async extractAsync() {
     const title = this._getTitle();
     const url = window.location.href;
+    const videoId = this._getVideoId(url);
+    console.debug("[YouTubeExtractor] Starting extraction", { videoId: videoId });
+
+    if (!videoId) {
+      this._recordFailure("UNSUPPORTED_YOUTUBE_PAGE");
+      return this._transcriptUnavailable(title, url);
+    }
 
     try {
-      const subtitleText = await this._fetchSubtitle();
-      if (subtitleText && subtitleText.length > 50) {
+      const subtitleText = await this._fetchSubtitle(videoId);
+      if (subtitleText && subtitleText.length >= this.MIN_TRANSCRIPT_LENGTH) {
         return {
           title: title,
           content: this._truncate(subtitleText),
@@ -36,9 +47,12 @@ const YoutubeExtractor = {
         };
       }
     } catch (e) {
-      console.warn("[AI Summary] YouTube 字幕获取失败：", e);
+      console.warn("[YouTubeExtractor] Unexpected extraction error", e.message);
     }
 
+    console.debug("[YouTubeExtractor] Frontend extraction unavailable; allowing backend fallback", {
+      failureReason: this.lastFailureReason,
+    });
     return this._transcriptUnavailable(title, url);
   },
 
@@ -54,80 +68,127 @@ const YoutubeExtractor = {
   /**
    * 从页面数据中获取字幕轨道并下载
    */
-  async _fetchSubtitle() {
-    const captionTracks = await this._getCaptionTracks();
-    console.log("[AI Summary] Found caption tracks:", captionTracks ? captionTracks.length : 0);
+  async _fetchSubtitle(videoId) {
+    this.lastFailureReason = null;
+    const captionTracks = await this._getCaptionTracks(videoId);
+    console.debug("[YouTubeExtractor] Caption tracks resolved", {
+      found: Boolean(captionTracks?.length),
+      count: captionTracks?.length || 0,
+    });
 
-    if (!captionTracks || captionTracks.length === 0) return null;
-
-    // 选择最佳字幕轨道：优先中文（所有变体），其次英文，最后第一个
-    let track = captionTracks.find(t => this._isChineseTrack(t));
-    if (!track) track = captionTracks.find(t => t.languageCode === "en" || t.languageCode === "en-US" || t.languageCode === "en-GB");
-    if (!track) track = captionTracks[0];
-
-    console.log("[AI Summary] Selected track:", track.languageCode, track.name?.simpleText || "");
-
-    // 请求字幕（加 fmt=json3 获取 JSON 格式）
-    let captionUrl = track.baseUrl;
-    if (!captionUrl) return null;
-
-    // 尝试 JSON 格式
-    let jsonUrl = captionUrl + (captionUrl.includes("?") ? "&" : "?") + "fmt=json3";
-
-    // 第一次尝试：带 Cookie 请求 JSON 格式
-    let subtitleText = await this._downloadSubtitle(jsonUrl, "json");
-
-    // 第二次尝试：不带 fmt 参数，获取默认 XML 格式
-    if (!subtitleText) {
-      console.log("[AI Summary] JSON 格式失败，尝试 XML 格式");
-      subtitleText = await this._downloadSubtitle(captionUrl, "xml");
+    if (!captionTracks || captionTracks.length === 0) {
+      this._recordFailure("NO_CAPTION_TRACKS");
+      return null;
     }
 
-    // 第三次尝试：换一个字幕轨道（比如英文）
-    if (!subtitleText && track.languageCode !== "en") {
-      const enTrack = captionTracks.find(t => t.languageCode === "en" || t.languageCode === "en-US" || t.languageCode === "en-GB");
-      if (enTrack && enTrack.baseUrl) {
-        console.log("[AI Summary] 中文字幕下载失败，尝试英文字幕");
-        let enUrl = enTrack.baseUrl + (enTrack.baseUrl.includes("?") ? "&" : "?") + "fmt=json3";
-        subtitleText = await this._downloadSubtitle(enUrl, "json");
-        if (!subtitleText) {
-          subtitleText = await this._downloadSubtitle(enTrack.baseUrl, "xml");
-        }
+    for (const track of this._orderCaptionTracks(captionTracks)) {
+      if (!track.baseUrl || !this._isAllowedCaptionUrl(track.baseUrl)) {
+        continue;
+      }
+      const subtitleText = await this._downloadTrack(track);
+      if (subtitleText && subtitleText.length >= this.MIN_TRANSCRIPT_LENGTH) {
+        return subtitleText;
       }
     }
 
-    if (subtitleText) {
-      console.log("[AI Summary] 提取到字幕长度:", subtitleText.length);
-    }
-    return subtitleText;
+    return null;
   },
 
   /**
-   * 下载并解析字幕内容，支持 JSON 和 XML 两种格式
+   * 下载并解析一个字幕轨道，支持 JSON、XML 和 VTT 格式。
    */
-  async _downloadSubtitle(url, format) {
+  async _downloadTrack(track) {
+    const attempts = [
+      { url: this._withCaptionFormat(track.baseUrl, "json3"), format: "json", label: "json3" },
+      { url: track.baseUrl, format: "timedText", label: "default" },
+      { url: this._withCaptionFormat(track.baseUrl, "vtt"), format: "timedText", label: "vtt" },
+    ];
+
+    for (const attempt of attempts) {
+      const subtitle = await this._downloadSubtitle(attempt.url, attempt.format, attempt.label);
+      if (subtitle && subtitle.length >= this.MIN_TRANSCRIPT_LENGTH) {
+        return subtitle;
+      }
+    }
+    return null;
+  },
+
+  _withCaptionFormat(url, format) {
+    const encodedFormat = encodeURIComponent(format);
+    if (/[?&]fmt=/i.test(url)) {
+      return url.replace(/([?&]fmt=)[^&]*/i, "$1" + encodedFormat);
+    }
+    return url + (url.includes("?") ? "&" : "?") + "fmt=" + encodedFormat;
+  },
+
+  _isAllowedCaptionUrl(url) {
+    try {
+      const parsed = new URL(url);
+      return parsed.protocol === "https:" &&
+        (parsed.hostname === "youtube.com" || parsed.hostname.endsWith(".youtube.com"));
+    } catch {
+      return false;
+    }
+  },
+
+  async _downloadSubtitle(url, format, label) {
     try {
       const resp = await fetch(url, { credentials: "include" });
       if (!resp.ok) {
-        console.warn("[AI Summary] 字幕请求失败:", resp.status, url.substring(0, 80));
+        this._recordFailure("CAPTION_URL_FETCH_FAILED", String(resp.status));
         return null;
       }
+      let text = await resp.text();
 
-      const text = await resp.text();
       if (!text || text.length < 10) {
-        console.warn("[AI Summary] 字幕响应为空");
-        return null;
+        const pageResponse = await this._requestMainWorldCaptionText(url);
+        if (pageResponse) {
+          text = pageResponse.text || "";
+        }
+        if (!text || text.length < 10) {
+          this._recordFailure("CAPTION_RESPONSE_EMPTY", label);
+          return null;
+        }
       }
 
-      if (format === "json") {
-        return this._parseJsonSubtitle(text);
-      } else {
-        return this._parseXmlSubtitle(text);
-      }
+      const subtitle = format === "json"
+        ? this._parseJsonSubtitle(text)
+        : this._parseTimedTextSubtitle(text);
+      if (!subtitle) this._recordFailure("SUBTITLE_PARSE_FAILED", label);
+      return subtitle;
     } catch (e) {
-      console.warn("[AI Summary] 字幕下载失败:", e.message);
+      this._recordFailure("CAPTION_URL_FETCH_FAILED", e.message);
       return null;
     }
+  },
+
+  _requestMainWorldCaptionText(url) {
+    return new Promise((resolve) => {
+      const requestId = "youtube-caption-" + Date.now() + "-" + Math.random().toString(36).slice(2);
+      const timer = setTimeout(() => {
+        window.removeEventListener("message", onMessage);
+        resolve(null);
+      }, 3000);
+
+      const onMessage = (event) => {
+        const message = event.data;
+        if (event.source !== window || message?.source !== "ai-summary-extension" ||
+            message.type !== "AI_SUMMARY_YOUTUBE_CAPTION_TEXT" || message.requestId !== requestId) {
+          return;
+        }
+        clearTimeout(timer);
+        window.removeEventListener("message", onMessage);
+        resolve(message.data || null);
+      };
+
+      window.addEventListener("message", onMessage);
+      window.postMessage({
+        source: "ai-summary-extension",
+        type: "AI_SUMMARY_REQUEST_YOUTUBE_CAPTION_TEXT",
+        requestId: requestId,
+        url: url,
+      }, "*");
+    });
   },
 
   /**
@@ -146,39 +207,77 @@ const YoutubeExtractor = {
         }
       }
 
-      const result = lines.join("\n");
-      return result.length > 20 ? result : null;
-    } catch (e) {
-      console.warn("[AI Summary] JSON 字幕解析失败:", e.message);
+      return this._normalizeTranscript(lines);
+    } catch {
       return null;
     }
   },
 
-  /**
-   * 解析 XML 格式字幕（YouTube 默认格式）
-   */
+  _parseTimedTextSubtitle(text) {
+    if (text.trimStart().startsWith("WEBVTT")) {
+      return this._parseVttSubtitle(text);
+    }
+    return this._parseXmlSubtitle(text);
+  },
+
   _parseXmlSubtitle(text) {
     try {
       const parser = new DOMParser();
       const doc = parser.parseFromString(text, "text/xml");
-      const textElements = doc.querySelectorAll("text");
-
-      if (!textElements || textElements.length === 0) return null;
-
       const lines = [];
-      textElements.forEach(el => {
-        const content = el.textContent.trim();
-        if (content) lines.push(content);
-      });
+      const textElements = doc.querySelectorAll("text");
+      const paragraphs = doc.querySelectorAll("p");
+      if (textElements.length > 0) {
+        textElements.forEach(el => {
+          const content = el.textContent.trim();
+          if (content) lines.push(content);
+        });
+      } else {
+        paragraphs.forEach(paragraph => {
+          const segments = paragraph.querySelectorAll("s");
+          const content = segments.length > 0
+            ? Array.from(segments).map(segment => segment.textContent).join("")
+            : paragraph.textContent;
+          if (content.trim()) lines.push(content.trim());
+        });
+      }
 
-      const result = lines.join("\n");
-      // 解码 HTML 实体（YouTube XML 字幕中 &amp; &#39; 等）
-      const decoded = result.replace(/&amp;/g, "&").replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">");
-      return decoded.length > 20 ? decoded : null;
-    } catch (e) {
-      console.warn("[AI Summary] XML 字幕解析失败:", e.message);
+      return this._normalizeTranscript(lines);
+    } catch {
       return null;
     }
+  },
+
+  _parseVttSubtitle(text) {
+    const lines = [];
+    for (const line of text.split(/\r?\n/)) {
+      const cleaned = line.trim();
+      if (!cleaned || cleaned === "WEBVTT" || cleaned.startsWith("Kind:") ||
+          cleaned.startsWith("Language:") || cleaned.includes("-->") ||
+          /^\d+$/.test(cleaned)) {
+        continue;
+      }
+      lines.push(cleaned);
+    }
+    return this._normalizeTranscript(lines);
+  },
+
+  _normalizeTranscript(lines) {
+    const normalized = [];
+    for (const line of lines) {
+      const cleanLine = this._decodeHtmlEntities(line.replace(/<[^>]*>/g, "")).replace(/\s+/g, " ").trim();
+      if (cleanLine && cleanLine !== normalized[normalized.length - 1]) {
+        normalized.push(cleanLine);
+      }
+    }
+    const text = normalized.join("\n");
+    return text.length >= this.MIN_TRANSCRIPT_LENGTH ? text : null;
+  },
+
+  _decodeHtmlEntities(text) {
+    const element = document.createElement("textarea");
+    element.innerHTML = text;
+    return element.value;
   },
 
   /**
@@ -192,28 +291,85 @@ const YoutubeExtractor = {
            code.startsWith("zh");
   },
 
+  _isEnglishTrack(track) {
+    const code = (track.languageCode || "").toLowerCase();
+    return code === "en" || code.startsWith("en-");
+  },
+
+  /**
+   * Manual captions are preferred first, then Chinese, English and other languages.
+   */
+  _orderCaptionTracks(tracks) {
+    return [...tracks].sort((left, right) => this._trackPriority(left) - this._trackPriority(right));
+  },
+
+  _trackPriority(track) {
+    const generatedPenalty = track.kind === "asr" ? 100 : 0;
+    if (this._isChineseTrack(track)) return generatedPenalty;
+    if (this._isEnglishTrack(track)) return generatedPenalty + 10;
+    return generatedPenalty + 20;
+  },
+
   /**
    * 从页面中提取字幕轨道信息（多种方法）
    */
-  async _getCaptionTracks() {
+  async _getCaptionTracks(videoId) {
     let tracks = null;
 
-    // 方法1：从页面 HTML script 标签中提取（直接打开视频链接时有效）
-    tracks = this._extractFromPageSource();
+    // Layer 1: read live player state through the main-world bridge.
+    const playerData = await this._requestMainWorldPlayerData(videoId);
+    tracks = playerData?.captionTracks;
+    if (tracks && tracks.length > 0) {
+      return tracks;
+    }
+
+    // Layer 2: existing script and HTML scan fallback.
+    tracks = this._extractFromPageSource(videoId);
     if (tracks && tracks.length > 0) return tracks;
 
-    // 方法2（最可靠）：主动 fetch 视频页面 HTML 提取（SPA 导航时兜底）
-    tracks = await this._extractByFetchingPage();
+    tracks = await this._extractByFetchingPage(videoId);
+    if (tracks && tracks.length > 0) return tracks;
+
+    // Layer 3: browser-side InnerTube request using page-provided web client context.
+    tracks = await this._extractFromInnerTube(videoId, playerData?.innerTube);
     if (tracks && tracks.length > 0) return tracks;
 
     return null;
   },
 
+  _requestMainWorldPlayerData(videoId) {
+    return new Promise((resolve) => {
+      const requestId = "youtube-player-" + Date.now() + "-" + Math.random().toString(36).slice(2);
+      const timer = setTimeout(() => {
+        window.removeEventListener("message", onMessage);
+        resolve(null);
+      }, 800);
+
+      const onMessage = (event) => {
+        const message = event.data;
+        if (event.source !== window || message?.source !== "ai-summary-extension" ||
+            message.type !== "AI_SUMMARY_YOUTUBE_PLAYER_DATA" || message.requestId !== requestId) {
+          return;
+        }
+        clearTimeout(timer);
+        window.removeEventListener("message", onMessage);
+        resolve(message.data || null);
+      };
+
+      window.addEventListener("message", onMessage);
+      window.postMessage({
+        source: "ai-summary-extension",
+        type: "AI_SUMMARY_REQUEST_YOUTUBE_PLAYER_DATA",
+        requestId: requestId,
+        videoId: videoId,
+      }, "*");
+    });
+  },
+
   /**
    * 方法1：从页面 script 标签中用正则提取 captionTracks
    */
-  _extractFromPageSource() {
-    const videoId = new URL(window.location.href).searchParams.get("v");
+  _extractFromPageSource(videoId) {
     const scripts = document.querySelectorAll("script");
     for (const script of scripts) {
       const text = script.textContent;
@@ -246,13 +402,10 @@ const YoutubeExtractor = {
           const jsonStr = text.substring(arrayStart, endIdx);
           const parsed = JSON.parse(jsonStr);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            console.log("[AI Summary] 方法1成功: 从 script 标签提取到", parsed.length, "个字幕轨道");
             return parsed;
           }
         }
-      } catch (e) {
-        console.warn("[AI Summary] 方法1解析失败:", e.message);
-      }
+      } catch { /* Ignore malformed embedded player data and continue scanning. */ }
     }
     return null;
   },
@@ -261,15 +414,10 @@ const YoutubeExtractor = {
    * 方法2（最可靠）：主动 fetch 视频页面 HTML，从中提取 captionTracks
    * 这解决了 YouTube SPA 导航后 DOM 中不再包含 captionTracks 的问题
    */
-  async _extractByFetchingPage() {
+  async _extractByFetchingPage(videoId) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 8000);
     try {
-      const videoId = new URL(window.location.href).searchParams.get("v");
-      if (!videoId) return null;
-
-      console.log("[AI Summary] 方法2: 正在 fetch 视频页面 HTML, videoId:", videoId);
-
       const resp = await fetch("https://www.youtube.com/watch?v=" + videoId, {
         credentials: "same-origin",
         signal: controller.signal,
@@ -282,7 +430,6 @@ const YoutubeExtractor = {
       const marker = '"captionTracks":';
       const startIdx = html.indexOf(marker);
       if (startIdx === -1) {
-        console.log("[AI Summary] 方法2: HTML 中未找到 captionTracks");
         return null;
       }
 
@@ -305,15 +452,98 @@ const YoutubeExtractor = {
       const jsonStr = html.substring(arrayStart, endIdx);
       const parsed = JSON.parse(jsonStr);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        console.log("[AI Summary] 方法2成功: fetch 页面提取到", parsed.length, "个字幕轨道");
         return parsed;
       }
-    } catch (e) {
-      console.warn("[AI Summary] 方法2失败:", e.message);
-    } finally {
+    } catch { /* Continue to the next extraction fallback. */ } finally {
       clearTimeout(timer);
     }
     return null;
+  },
+
+  async _extractFromInnerTube(videoId, config) {
+    let innerTube = config;
+    if (!innerTube?.apiKey || !innerTube.client?.clientVersion) {
+      innerTube = this._extractInnerTubeConfigFromPageSource() || innerTube;
+    }
+    if (!innerTube?.apiKey || !innerTube.client?.clientVersion) {
+      this._recordFailure("INNERTUBE_CONFIG_UNAVAILABLE");
+      return null;
+    }
+    const client = {
+      clientName: innerTube.client.clientName || "WEB",
+      clientVersion: innerTube.client.clientVersion,
+      hl: innerTube.client.hl || "en",
+    };
+    if (innerTube.client.gl) client.gl = innerTube.client.gl;
+    if (innerTube.client.visitorData) client.visitorData = innerTube.client.visitorData;
+
+    try {
+      const response = await fetch(
+        "https://www.youtube.com/youtubei/v1/player?key=" + encodeURIComponent(innerTube.apiKey),
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            "X-YouTube-Client-Name": innerTube.clientNameHeader || "1",
+            "X-YouTube-Client-Version": client.clientVersion,
+          },
+          body: JSON.stringify({
+            videoId: videoId,
+            context: { client: client },
+          }),
+        }
+      );
+      if (!response.ok) {
+        this._recordFailure("CAPTION_URL_FETCH_FAILED", "InnerTube " + response.status);
+        return null;
+      }
+
+      const playerResponse = await response.json();
+      const tracks = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+      if (Array.isArray(tracks) && tracks.length > 0) {
+        return tracks;
+      }
+      this._recordFailure("NO_CAPTION_TRACKS", "InnerTube");
+    } catch (e) {
+      this._recordFailure("CAPTION_URL_FETCH_FAILED", "InnerTube " + e.message);
+    }
+    return null;
+  },
+
+  _extractInnerTubeConfigFromPageSource() {
+    for (const script of document.querySelectorAll("script")) {
+      const text = script.textContent || "";
+      if (!text.includes("INNERTUBE_API_KEY")) continue;
+      const apiKey = text.match(/"INNERTUBE_API_KEY"\s*:\s*"([^"]+)"/)?.[1];
+      const version = text.match(/"INNERTUBE_CLIENT_VERSION"\s*:\s*"([^"]+)"/)?.[1];
+      const clientNameHeader = text.match(/"INNERTUBE_CONTEXT_CLIENT_NAME"\s*:\s*(\d+)/)?.[1];
+      if (apiKey && version) {
+        return {
+          apiKey: apiKey,
+          clientNameHeader: clientNameHeader || "1",
+          client: { clientName: "WEB", clientVersion: version, hl: "en" },
+        };
+      }
+    }
+    return null;
+  },
+
+  _getVideoId(url) {
+    try {
+      const parsed = new URL(url);
+      if (parsed.hostname === "youtu.be") return parsed.pathname.split("/")[1] || null;
+      if (parsed.pathname === "/watch") return parsed.searchParams.get("v");
+      if (parsed.pathname.startsWith("/shorts/")) return parsed.pathname.split("/")[2] || null;
+    } catch {
+      return null;
+    }
+    return null;
+  },
+
+  _recordFailure(reason, detail) {
+    this.lastFailureReason = reason;
+    console.warn("[YouTubeExtractor] Failure", { code: reason, detail: detail || "" });
   },
 
   _transcriptUnavailable(title, url) {

@@ -72,7 +72,7 @@ const BackendApi = {
     const data = await response.json();
 
     if (data.code !== 200) {
-      throw new Error(data.message || "请求失败");
+      throw new Error(I18n.t("backendRequestFailed"));
     }
 
     return data.data;

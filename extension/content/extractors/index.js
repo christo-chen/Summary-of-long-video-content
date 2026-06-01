@@ -14,7 +14,7 @@ const ExtractorFactory = {
    */
   detectSourceType(url) {
     if (url.includes("bilibili.com/video")) return "bilibili";
-    if (url.includes("youtube.com/watch")) return "youtube";
+    if (url.includes("youtube.com/watch") || url.includes("youtube.com/shorts/")) return "youtube";
     if (url.includes("github.com") && !url.includes("/issues") && !url.includes("/pull")) return "github";
     if (url.includes("stackoverflow.com/questions")) return "stackoverflow";
     return "article";

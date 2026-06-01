@@ -23,13 +23,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           } else {
             sendResponse({
               success: false,
-              error: "未能提取到有效内容（字幕获取失败或视频无字幕）",
+              errorCode: "VIDEO_CONTENT_EXTRACTION_FAILED",
             });
           }
-        }).catch(err => {
+        }).catch(() => {
           sendResponse({
             success: false,
-            error: "异步提取出错：" + err.message,
+            errorCode: "CONTENT_EXTRACTION_ERROR",
           });
         });
         // 返回 true 表示异步发送响应
@@ -42,13 +42,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       } else {
         sendResponse({
           success: false,
-          error: "未能提取到有效内容，该页面可能不包含文章正文",
+          errorCode: "CONTENT_EXTRACTION_FAILED",
         });
       }
-    } catch (err) {
+    } catch {
       sendResponse({
         success: false,
-        error: "提取过程出错：" + err.message,
+        errorCode: "CONTENT_EXTRACTION_ERROR",
       });
     }
   }

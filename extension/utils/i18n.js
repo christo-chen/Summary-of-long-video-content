@@ -135,7 +135,16 @@ const I18n = {
       // 错误提示
       errorFreeQuotaExhausted: "免费额度已用完，请在设置中配置自己的 API Key",
       errorProxyFailed: "后端代理请求失败",
+      backendRequestFailed: "请求失败，请稍后重试。",
       videoNoTranscript: "当前视频没有检测到可用字幕/转录文本，因此无法准确总结视频内容。为了避免生成不准确内容，本次不会仅根据标题或简介生成总结。",
+      videoInvalidUrl: "不支持或无效的视频链接。",
+      videoYtDlpNotAvailable: "视频字幕提取服务当前不可用，请稍后重试。",
+      videoTranscriptFailed: "视频字幕/转录文本提取失败，请稍后重试。",
+      noActiveTab: "没有找到当前标签页。",
+      contentScriptConnectionFailed: "无法连接到页面，请刷新后重试。",
+      videoContentExtractionFailed: "未能提取到有效内容（字幕获取失败或视频无字幕）。",
+      contentExtractionFailed: "未能提取到有效内容，该页面可能不包含文章正文。",
+      contentExtractionError: "内容提取失败，请刷新页面后重试。",
 
       // 加载状态
       aiLoadingText: "AI 正在分析内容...",
@@ -266,7 +275,16 @@ const I18n = {
       backendProxySoftReminder: "You can continue using the default AI service. For more stable long-term use, we recommend adding your own API key from the top-right Settings.",
       errorFreeQuotaExhausted: "Free quota exhausted, please configure your own API Key in Settings",
       errorProxyFailed: "Backend proxy request failed",
-      videoNoTranscript: "No usable subtitles/transcript were detected for this video, so it cannot be summarized accurately. To avoid inaccurate output, this summary will not be generated from only the title or description.",
+      backendRequestFailed: "Request failed. Please try again later.",
+      videoNoTranscript: "No available subtitles or transcript were detected for this video, so the content cannot be summarized accurately. To avoid inaccurate results, this summary will not be generated from only the title or description.",
+      videoInvalidUrl: "Unsupported or invalid video URL.",
+      videoYtDlpNotAvailable: "The video subtitle extraction service is currently unavailable. Please try again later.",
+      videoTranscriptFailed: "Failed to extract subtitles or transcript for this video. Please try again later.",
+      noActiveTab: "No active tab was found.",
+      contentScriptConnectionFailed: "Unable to connect to this page. Please refresh and try again.",
+      videoContentExtractionFailed: "No usable content was extracted because subtitle retrieval failed or this video has no subtitles.",
+      contentExtractionFailed: "No usable content was extracted. This page may not contain article text.",
+      contentExtractionError: "Content extraction failed. Please refresh the page and try again.",
 
       aiLoadingText: "AI is analyzing the content...",
 
@@ -288,6 +306,26 @@ const I18n = {
    */
   t(key) {
     return this.strings[this.currentLang][key] || this.strings["zh"][key] || key;
+  },
+
+  /**
+   * Map stable failure identifiers to messages in the selected UI language.
+   */
+  errorMessage(code, fallbackMessage, defaultKey = "contentExtractionError") {
+    const errorKeys = {
+      NO_TRANSCRIPT_AVAILABLE: "videoNoTranscript",
+      INVALID_VIDEO_URL: "videoInvalidUrl",
+      YTDLP_NOT_AVAILABLE: "videoYtDlpNotAvailable",
+      VIDEO_TRANSCRIPT_FAILED: "videoTranscriptFailed",
+      BACKEND_PROXY_FAILED: "errorProxyFailed",
+      NO_ACTIVE_TAB: "noActiveTab",
+      CONTENT_SCRIPT_CONNECTION_FAILED: "contentScriptConnectionFailed",
+      VIDEO_CONTENT_EXTRACTION_FAILED: "videoContentExtractionFailed",
+      CONTENT_EXTRACTION_FAILED: "contentExtractionFailed",
+      CONTENT_EXTRACTION_ERROR: "contentExtractionError",
+    };
+    const key = errorKeys[code];
+    return key ? this.t(key) : (fallbackMessage || this.t(defaultKey));
   },
 
   /**

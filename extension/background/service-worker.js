@@ -18,7 +18,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // SidePanel 请求提取当前页面内容
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (!tabs[0]) {
-        sendResponse({ success: false, error: "没有找到当前标签页" });
+        sendResponse({ success: false, errorCode: "NO_ACTIVE_TAB" });
         return;
       }
 
@@ -28,7 +28,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (chrome.runtime.lastError) {
           sendResponse({
             success: false,
-            error: "无法连接到页面，请刷新后重试：" + chrome.runtime.lastError.message,
+            errorCode: "CONTENT_SCRIPT_CONNECTION_FAILED",
           });
           return;
         }

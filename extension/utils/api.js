@@ -62,7 +62,7 @@ const AiClient = {
       const result = await response.json();
 
       if (!response.ok || result.code !== 200) {
-        throw new Error(I18n.t("errorProxyFailed") + "：" + (result.message || response.status));
+        throw new Error(I18n.errorMessage("BACKEND_PROXY_FAILED"));
       }
 
       const summary = result.data?.summary || result.data;
@@ -123,12 +123,14 @@ const AiClient = {
 
     const result = await response.json();
     if (!response.ok || result.code !== 200) {
-      throw new Error(I18n.t("errorProxyFailed") + "：" + (result.message || response.status));
+      const errorCode = result.data?.error || result.errorCode;
+      throw new Error(I18n.errorMessage(errorCode, null, "videoTranscriptFailed"));
     }
 
     if (!result.data?.success) {
-      const err = new Error(result.data?.message || I18n.t("videoNoTranscript"));
-      err.noTranscriptAvailable = result.data?.error === "NO_TRANSCRIPT_AVAILABLE";
+      const errorCode = result.data?.error;
+      const err = new Error(I18n.errorMessage(errorCode, result.data?.message, "videoTranscriptFailed"));
+      err.noTranscriptAvailable = errorCode === "NO_TRANSCRIPT_AVAILABLE";
       throw err;
     }
 

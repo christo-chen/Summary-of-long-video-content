@@ -181,7 +181,7 @@ async function generateSummary() {
     const extractResponse = await new Promise((resolve, reject) => {
       chrome.runtime.sendMessage({ type: "EXTRACT_CONTENT" }, (response) => {
         if (chrome.runtime.lastError) {
-          reject(new Error(chrome.runtime.lastError.message));
+          reject(new Error(I18n.errorMessage("CONTENT_SCRIPT_CONNECTION_FAILED")));
           return;
         }
         resolve(response);
@@ -189,7 +189,11 @@ async function generateSummary() {
     });
 
     if (!extractResponse || !extractResponse.success) {
-      throw new Error(extractResponse?.error || (I18n.currentLang === "en" ? "Content extraction failed, please refresh the page" : "内容提取失败，请刷新页面重试"));
+      throw new Error(I18n.errorMessage(
+        extractResponse?.errorCode,
+        extractResponse?.error,
+        "contentExtractionError"
+      ));
     }
 
     const { title, content, url, sourceType } = extractResponse.data;
