@@ -18,7 +18,7 @@
 - 📄 Extract main content from any webpage (Readability.js)
 - 📦 Summarize GitHub repositories and technical pages
 - 🧠 AI-generated structured summaries, mind maps, and translations via DeepSeek API
-- 🎬 Subtitle-based video summary for YouTube/Bilibili, with backend yt-dlp fallback
+- 🎬 Subtitle-based video summaries for YouTube/Bilibili, with backend yt-dlp fallback
 - 🚫 Prevent fake video summaries when no real transcript is available
 - 🔓 Free default AI proxy with soft reminder after 3 uses (no hard block)
 - 📒 Sync to Notion via OAuth / Export to Obsidian & Logseq

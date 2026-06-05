@@ -9,7 +9,7 @@
 - **YouTube 字幕**：自动获取字幕轨道，支持中英文
 - **GitHub README**：提取仓库信息和 README 内容
 - **StackOverflow**：提取问题 + 采纳答案 + 高赞答案
-- **专用 Prompt**：根据内容来源自动切换 AI 提示词模板（亮点 B）
+- **专用 Prompt**：根据内容来源自动切换 AI 提示词模板
 - **可视化思维导图**：使用 Markmap 渲染可交互的 SVG 思维导图
 - **多 AI 支持**：支持 DeepSeek 和 OpenAI，可切换
 
