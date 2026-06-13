@@ -2,17 +2,20 @@
  * YouTube 视频字幕提取器
  *
  * 提取思路：
- * 1. 从页面主世界中的播放器响应读取字幕轨道
- * 2. 从页面 HTML 中扫描字幕轨道作为兼容兜底
- * 3. 通过浏览器侧 InnerTube player API 获取字幕轨道
- * 4. 请求字幕 JSON/XML/VTT，解析为纯文本
- * 5. 如果没有字幕，交给后端 yt-dlp 字幕提取兜底
+ * 1. 模拟点击 YouTube 页面上的“显示文字稿 / Show transcript”
+ * 2. 等 YouTube 自己渲染文字稿面板
+ * 3. 从渲染后的 DOM 读取两套已知文字稿 UI
+ * 4. 如果没有文字稿，交给上层降级到手动粘贴/后端兜底
  */
 
 // eslint-disable-next-line no-unused-vars
 const YoutubeExtractor = {
 
   MIN_TRANSCRIPT_LENGTH: 50,
+  TRANSCRIPT_SEGMENT_SELECTORS: [
+    "ytd-transcript-segment-renderer",
+    "transcript-segment-view-model",
+  ],
   lastFailureReason: null,
 
   extract() {
@@ -70,27 +73,329 @@ const YoutubeExtractor = {
    */
   async _fetchSubtitle(videoId) {
     this.lastFailureReason = null;
-    const captionTracks = await this._getCaptionTracks(videoId);
-    console.debug("[YouTubeExtractor] Caption tracks resolved", {
-      found: Boolean(captionTracks?.length),
-      count: captionTracks?.length || 0,
-    });
-
-    if (!captionTracks || captionTracks.length === 0) {
-      this._recordFailure("NO_CAPTION_TRACKS");
+    const transcript = await this.getTranscript(videoId);
+    if (!transcript || !transcript.lines.length) {
+      this._recordFailure("TRANSCRIPT_PANEL_UNAVAILABLE");
       return null;
     }
 
-    for (const track of this._orderCaptionTracks(captionTracks)) {
-      if (!track.baseUrl || !this._isAllowedCaptionUrl(track.baseUrl)) {
-        continue;
+    console.debug("[YouTubeExtractor] Transcript panel extracted", {
+      selector: transcript.selector,
+      lines: transcript.lines.length,
+    });
+
+    return this._normalizeTranscript(transcript.lines);
+  },
+
+  async getTranscript(videoId) {
+    let openButton = null;
+    try {
+      await this._resetTranscriptPanelBeforeOpen(videoId);
+      openButton = this._findTranscriptButton();
+      if (!openButton) {
+        this._recordFailure("TRANSCRIPT_BUTTON_NOT_FOUND");
+        return null;
       }
-      const subtitleText = await this._downloadTrack(track);
-      if (subtitleText && subtitleText.length >= this.MIN_TRANSCRIPT_LENGTH) {
-        return subtitleText;
+
+      this._clickElement(openButton);
+
+      // YouTube renders transcript segments asynchronously. Existing nodes are
+      // valid too; wait until the current total segment count stops changing.
+      const stable = await this._waitForTranscriptSegments({
+        timeoutMs: 8000,
+        stableMs: 500,
+      });
+      if (!stable) {
+        this._recordFailure("TRANSCRIPT_PANEL_TIMEOUT");
+        return null;
+      }
+
+      const transcript = this._readTranscriptSegments();
+      if (!transcript || !transcript.lines.length) {
+        this._recordFailure("TRANSCRIPT_PANEL_EMPTY");
+        return null;
+      }
+
+      return transcript;
+    } catch (e) {
+      this._recordFailure("TRANSCRIPT_PANEL_ERROR", e.message);
+      return null;
+    } finally {
+      if (openButton) {
+        this._closeTranscriptPanel(openButton);
       }
     }
+  },
 
+  _findTranscriptButton() {
+    const candidates = Array.from(document.querySelectorAll([
+      "button",
+      "[role='button']",
+      "a",
+      "tp-yt-paper-button",
+      "yt-button-shape",
+      "ytd-button-renderer",
+    ].join(",")));
+
+    for (const element of candidates) {
+      if (!this._isVisible(element)) continue;
+      if (!this._textLooksLikeTranscriptButton(element.textContent || "")) continue;
+
+      const clickable = element.closest("button, [role='button'], a, tp-yt-paper-button, yt-button-shape, ytd-button-renderer") || element;
+      if (this._isVisible(clickable)) return clickable;
+    }
+    return null;
+  },
+
+  _textLooksLikeTranscriptButton(text) {
+    const normalized = text.replace(/\s+/g, " ").trim().toLowerCase();
+    return normalized.includes("transcript") || normalized.includes("显示文字稿");
+  },
+
+  _clickElement(element) {
+    element.scrollIntoView({ block: "center", inline: "center" });
+    element.dispatchEvent(new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      view: window,
+    }));
+  },
+
+  async _resetTranscriptPanelBeforeOpen(videoId) {
+    if (this._getVideoId(window.location.href) !== videoId) return;
+    if (this._getTranscriptSegmentCount() === 0) return;
+
+    // YouTube is an SPA, so a transcript panel may survive navigation. Close
+    // any existing panel before reopening it for the current URL.
+    this._closeTranscriptPanel();
+    await this._sleep(150);
+  },
+
+  _waitForTranscriptSegments({ timeoutMs, stableMs }) {
+    return new Promise((resolve) => {
+      let lastCount = -1;
+      let stableTimer = null;
+      let intervalTimer = null;
+      let done = false;
+
+      const cleanup = (value) => {
+        if (done) return;
+        done = true;
+        clearTimeout(timeoutTimer);
+        clearTimeout(stableTimer);
+        clearInterval(intervalTimer);
+        observer.disconnect();
+        resolve(value);
+      };
+
+      const armStableTimer = (count) => {
+        clearTimeout(stableTimer);
+        stableTimer = setTimeout(() => {
+          cleanup(this._getTranscriptSegmentCount() === count && count > 0);
+        }, stableMs);
+      };
+
+      const check = () => {
+        const count = this._getTranscriptSegmentCount();
+        if (count === lastCount) return;
+        lastCount = count;
+        if (count > 0) armStableTimer(count);
+      };
+
+      const observer = new MutationObserver(check);
+      observer.observe(document.body, { childList: true, subtree: true });
+
+      const timeoutTimer = setTimeout(() => cleanup(false), timeoutMs);
+      intervalTimer = setInterval(check, 100);
+      check();
+    });
+  },
+
+  _getTranscriptSegmentCount() {
+    return this._getTranscriptSegmentNodes().length;
+  },
+
+  _getTranscriptSegmentNodes() {
+    return this.TRANSCRIPT_SEGMENT_SELECTORS
+      .flatMap(selector => Array.from(document.querySelectorAll(selector)));
+  },
+
+  _readTranscriptSegments() {
+    for (const selector of this.TRANSCRIPT_SEGMENT_SELECTORS) {
+      const nodes = Array.from(document.querySelectorAll(selector));
+      if (nodes.length === 0) continue;
+
+      const seen = new Set();
+      const lines = [];
+      for (const node of nodes) {
+        const segment = this._readTranscriptSegment(node, selector);
+        if (!segment.text) continue;
+
+        // The old transcript UI can double-render segments during virtual
+        // scrolling, so de-dupe by timestamp+text; pure text de-dupe would
+        // incorrectly remove repeated sentences from the actual transcript.
+        const key = segment.timestamp + "\n" + segment.text;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        lines.push(segment.text);
+      }
+
+      return { selector: selector, lines: lines };
+    }
+    return null;
+  },
+
+  _readTranscriptSegment(node, selector) {
+    if (selector === "ytd-transcript-segment-renderer") {
+      return {
+        timestamp: this._cleanText(node.querySelector(".segment-timestamp")?.textContent || ""),
+        text: this._cleanText(node.querySelector(".segment-text")?.textContent || node.textContent || ""),
+      };
+    }
+
+    // Verified new UI selector. Timestamp class names are less stable there,
+    // so use timestamp-like text as a fallback while keeping text from the
+    // verified span.ytAttributedStringHost when available.
+    const textSpans = Array.from(node.querySelectorAll("span.ytAttributedStringHost"))
+      .filter(span => !this._looksLikeTimestamp(span.textContent || ""));
+    const text = this._cleanText(
+      textSpans
+        .map(span => span.textContent || "")
+        .join(" ") || node.textContent || ""
+    );
+    return {
+      timestamp: this._extractTimestampFromSegment(node),
+      text: text,
+    };
+  },
+
+  _extractTimestampFromSegment(node) {
+    const timestampNode = Array.from(node.querySelectorAll("*"))
+      .find(el => this._looksLikeTimestamp(el.textContent || ""));
+    return this._cleanText(timestampNode?.textContent || "");
+  },
+
+  _looksLikeTimestamp(text) {
+    return /^\s*(?:\d{1,2}:)?\d{1,2}:\d{2}\s*$/.test(text);
+  },
+
+  _cleanText(text) {
+    return text.replace(/\s+/g, " ").trim();
+  },
+
+  _closeTranscriptPanel(openButton) {
+    const closeButton = this._findTranscriptCloseButton();
+    if (closeButton) {
+      this._clickElement(closeButton);
+      return;
+    }
+
+    if (openButton?.isConnected && this._isVisible(openButton)) {
+      this._clickElement(openButton);
+    }
+  },
+
+  _sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  },
+
+  _findTranscriptCloseButton() {
+    const segment = document.querySelector(this.TRANSCRIPT_SEGMENT_SELECTORS.join(","));
+    const panel = segment?.closest("ytd-engagement-panel-section-list-renderer, ytd-transcript-renderer, tp-yt-paper-dialog, ytd-popup-container") ||
+      document.querySelector("ytd-engagement-panel-section-list-renderer[target-id='engagement-panel-searchable-transcript']");
+    if (!panel) return null;
+
+    const buttons = Array.from(panel.querySelectorAll("button, [role='button'], yt-button-shape"));
+    return buttons.find(button => {
+      if (!this._isVisible(button)) return false;
+      const label = (button.getAttribute("aria-label") || button.getAttribute("title") || button.textContent || "").toLowerCase();
+      return label.includes("close") || label.includes("关闭");
+    }) || null;
+  },
+
+  _isVisible(element) {
+    const rect = element.getBoundingClientRect();
+    const style = window.getComputedStyle(element);
+    return rect.width > 0 && rect.height > 0 &&
+      style.visibility !== "hidden" &&
+      style.display !== "none";
+  },
+
+  async _fetchTranscriptFromPanel(playerData) {
+    const params = playerData?.transcriptParams;
+    if (!params) {
+      this._recordFailure("TRANSCRIPT_PANEL_UNAVAILABLE");
+      return null;
+    }
+
+    let innerTube = playerData?.innerTube;
+    if (!innerTube?.apiKey) {
+      innerTube = this._extractInnerTubeConfigFromPageSource() || innerTube;
+    }
+    if (!innerTube?.apiKey) {
+      this._recordFailure("TRANSCRIPT_INNERTUBE_CONFIG_UNAVAILABLE");
+      return null;
+    }
+
+    try {
+      const response = await fetch(
+        "https://www.youtube.com/youtubei/v1/get_transcript?key=" + encodeURIComponent(innerTube.apiKey),
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            context: {
+              client: {
+                clientName: "WEB",
+                clientVersion: "2.20240101",
+              },
+            },
+            params: params,
+          }),
+        }
+      );
+      if (!response.ok) {
+        this._recordFailure("TRANSCRIPT_FETCH_FAILED", String(response.status));
+        return null;
+      }
+
+      const data = await response.json();
+      const transcript = this._parseTranscriptResponse(data);
+      if (!transcript) {
+        this._recordFailure("TRANSCRIPT_PARSE_FAILED");
+      }
+      return transcript;
+    } catch (e) {
+      this._recordFailure("TRANSCRIPT_FETCH_FAILED", e.message);
+      return null;
+    }
+  },
+
+  _parseTranscriptResponse(data) {
+    const actions = data?.actions;
+    if (!Array.isArray(actions)) return null;
+
+    for (const action of actions) {
+      const segments = action?.updateEngagementPanelAction?.content?.transcriptRenderer
+        ?.content?.transcriptSearchPanelRenderer?.body
+        ?.transcriptSegmentListRenderer?.initialSegments;
+      if (!Array.isArray(segments)) continue;
+
+      const lines = [];
+      for (const segment of segments) {
+        const runs = segment?.transcriptSegmentRenderer?.snippet?.runs;
+        if (!Array.isArray(runs)) continue;
+
+        const line = runs.map(run => run.text || "").join("").trim();
+        if (line) lines.push(line);
+      }
+
+      const transcript = this._normalizeTranscript(lines);
+      if (transcript) return transcript;
+    }
     return null;
   },
 
@@ -313,11 +618,11 @@ const YoutubeExtractor = {
   /**
    * 从页面中提取字幕轨道信息（多种方法）
    */
-  async _getCaptionTracks(videoId) {
+  async _getCaptionTracks(videoId, playerData) {
     let tracks = null;
 
     // Layer 1: read live player state through the main-world bridge.
-    const playerData = await this._requestMainWorldPlayerData(videoId);
+    playerData = playerData || await this._requestMainWorldPlayerData(videoId);
     tracks = playerData?.captionTracks;
     if (tracks && tracks.length > 0) {
       return tracks;
