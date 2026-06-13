@@ -91,22 +91,9 @@ const YoutubeExtractor = {
     let openButton = null;
     try {
       await this._resetTranscriptPanelBeforeOpen(videoId);
-      openButton = this._findTranscriptButton();
+      openButton = await this._openTranscriptPanel();
       if (!openButton) {
         this._recordFailure("TRANSCRIPT_BUTTON_NOT_FOUND");
-        return null;
-      }
-
-      this._clickElement(openButton);
-
-      // YouTube renders transcript segments asynchronously. Existing nodes are
-      // valid too; wait until the current total segment count stops changing.
-      const stable = await this._waitForTranscriptSegments({
-        timeoutMs: 8000,
-        stableMs: 500,
-      });
-      if (!stable) {
-        this._recordFailure("TRANSCRIPT_PANEL_TIMEOUT");
         return null;
       }
 
@@ -127,38 +114,164 @@ const YoutubeExtractor = {
     }
   },
 
-  _findTranscriptButton() {
-    const candidates = Array.from(document.querySelectorAll([
-      "button",
-      "[role='button']",
-      "a",
-      "tp-yt-paper-button",
-      "yt-button-shape",
-      "ytd-button-renderer",
+  async _openTranscriptPanel() {
+    const strategies = [
+      { find: () => this._findDescriptionTranscriptButton() },
+      { find: () => this._findInThisVideoTranscriptTab() },
+      { find: () => this._findEngagementTranscriptPanelButton() },
+    ];
+
+    for (const strategy of strategies) {
+      const clickable = await strategy.find();
+      if (!clickable) continue;
+
+      this._clickElement(clickable);
+      await this._sleep(150);
+
+      // Existing segment nodes count as valid; each strategy gets a chance to
+      // render and stabilize before falling through to the next opener.
+      const stable = await this._waitForTranscriptSegments({
+        timeoutMs: 3000,
+        stableMs: 500,
+      });
+      if (stable) return clickable;
+    }
+
+    return null;
+  },
+
+  async _findDescriptionTranscriptButton() {
+    let container = document.querySelector("ytd-video-description-transcript-section-renderer");
+    if (!container) {
+      this._expandDescription();
+      await this._sleep(200);
+      container = document.querySelector("ytd-video-description-transcript-section-renderer");
+    }
+    if (!container) return null;
+
+    return container.querySelector("button") ||
+      this._findClickableIn(container, "button, [role='button'], tp-yt-paper-button, yt-button-shape, ytd-button-renderer");
+  },
+
+  _expandDescription() {
+    const explicitExpand = document.querySelector("tp-yt-paper-button#expand, #expand");
+    if (explicitExpand && this._isVisible(explicitExpand)) {
+      this._clickElement(explicitExpand);
+      return;
+    }
+
+    const description = document.querySelector("#description, ytd-watch-metadata, ytd-expander");
+    const moreButton = description && this._findClickableIn(
+      description,
+      "button, [role='button'], tp-yt-paper-button, yt-button-shape, ytd-button-renderer",
+      text => text.includes("more") || text.includes("展开")
+    );
+    if (moreButton) this._clickElement(moreButton);
+  },
+
+  _findInThisVideoTranscriptTab() {
+    const panels = Array.from(document.querySelectorAll([
+      "ytd-engagement-panel-section-list-renderer",
+      "ytd-macro-markers-list-renderer",
+      "ytd-structured-description-content-renderer",
+      "ytd-watch-metadata",
     ].join(",")));
 
+    for (const panel of panels) {
+      const panelText = this._normalizeMatchText(panel.textContent || "");
+      if (!panelText.includes("in this video") && !panelText.includes("本视频")) continue;
+
+      const tab = this._findClickableIn(
+        panel,
+        "tp-yt-paper-tab, yt-chip, yt-chip-cloud-chip-renderer, button, [role='button']",
+        text => this._textLooksLikeTranscriptTab(text)
+      );
+      if (tab) {
+        return tab;
+      }
+    }
+
+    return this._findClickableIn(
+      document,
+      "tp-yt-paper-tab, yt-chip, yt-chip-cloud-chip-renderer, button, [role='button']",
+      text => this._textLooksLikeTranscriptTab(text)
+    );
+  },
+
+  _findEngagementTranscriptPanelButton() {
+    const panels = Array.from(document.querySelectorAll("ytd-engagement-panel-section-list-renderer"));
+    for (const panel of panels) {
+      const header = panel.querySelector("#header, ytd-engagement-panel-title-header-renderer, .header") || panel;
+      if (!this._textLooksLikeTranscriptTab(header.textContent || "")) continue;
+
+      // Engagement panels expose the transcript as a header/visibility toggle;
+      // prefer those controls before falling back to the header container.
+      const clickable = this._findClickableIn(
+        header,
+        "button, [role='button'], yt-button-shape, tp-yt-paper-button",
+        text => !this._textLooksLikeCloseButton(text),
+        element => !this._elementLooksLikeCloseButton(element)
+      );
+      if (clickable) return clickable;
+    }
+    return null;
+  },
+
+  _textLooksLikeTranscriptTab(text) {
+    const normalized = this._normalizeMatchText(text);
+    return normalized.includes("transcript") || normalized.includes("文字稿");
+  },
+
+  _normalizeMatchText(text) {
+    return text.replace(/\s+/g, " ").trim().toLowerCase();
+  },
+
+  _textLooksLikeCloseButton(text) {
+    const normalized = this._normalizeMatchText(text);
+    return normalized.includes("close") || normalized.includes("关闭");
+  },
+
+  _elementLooksLikeCloseButton(element) {
+    const label = [
+      element.getAttribute?.("aria-label") || "",
+      element.getAttribute?.("title") || "",
+      element.querySelector?.("button")?.getAttribute?.("aria-label") || "",
+      element.querySelector?.("button")?.getAttribute?.("title") || "",
+    ].join(" ");
+    return this._textLooksLikeCloseButton(label);
+  },
+
+  _findClickableIn(root, selector, predicate, elementPredicate) {
+    const candidates = Array.from(root.querySelectorAll(selector));
     for (const element of candidates) {
       if (!this._isVisible(element)) continue;
-      if (!this._textLooksLikeTranscriptButton(element.textContent || "")) continue;
+      const normalizedText = this._normalizeMatchText(element.textContent || "");
+      if (predicate && !predicate(normalizedText)) continue;
+      if (elementPredicate && !elementPredicate(element)) continue;
 
-      const clickable = element.closest("button, [role='button'], a, tp-yt-paper-button, yt-button-shape, ytd-button-renderer") || element;
+      const clickable = this._closestClickable(element) || element;
+      if (elementPredicate && !elementPredicate(clickable)) continue;
       if (this._isVisible(clickable)) return clickable;
     }
     return null;
   },
 
-  _textLooksLikeTranscriptButton(text) {
-    const normalized = text.replace(/\s+/g, " ").trim().toLowerCase();
-    return normalized.includes("transcript") || normalized.includes("显示文字稿");
+  _closestClickable(element) {
+    return element.closest("button, [role='button'], a, tp-yt-paper-button, tp-yt-paper-tab, yt-chip, yt-chip-cloud-chip-renderer, yt-button-shape, ytd-button-renderer");
   },
 
   _clickElement(element) {
-    element.scrollIntoView({ block: "center", inline: "center" });
-    element.dispatchEvent(new MouseEvent("click", {
+    const target = this._getNativeClickTarget(element);
+    target.scrollIntoView({ block: "center", inline: "center" });
+    target.dispatchEvent(new MouseEvent("click", {
       bubbles: true,
       cancelable: true,
       view: window,
     }));
+  },
+
+  _getNativeClickTarget(element) {
+    return element.querySelector?.("button") || element;
   },
 
   async _resetTranscriptPanelBeforeOpen(videoId) {
@@ -191,7 +304,9 @@ const YoutubeExtractor = {
       const armStableTimer = (count) => {
         clearTimeout(stableTimer);
         stableTimer = setTimeout(() => {
-          cleanup(this._getTranscriptSegmentCount() === count && count > 0);
+          const currentCount = this._getTranscriptSegmentCount();
+          const stable = currentCount === count && count > 0;
+          cleanup(stable);
         }, stableMs);
       };
 
