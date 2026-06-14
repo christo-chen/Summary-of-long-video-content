@@ -16,7 +16,24 @@ const YoutubeExtractor = {
     "ytd-transcript-segment-renderer",
     "transcript-segment-view-model",
   ],
+  FAILURE_REASONS: {
+    UNSUPPORTED_YOUTUBE_PAGE: "UNSUPPORTED_YOUTUBE_PAGE",
+    TRANSCRIPT_PANEL_UNAVAILABLE: "TRANSCRIPT_PANEL_UNAVAILABLE",
+    TRANSCRIPT_BUTTON_NOT_FOUND: "TRANSCRIPT_BUTTON_NOT_FOUND",
+    TRANSCRIPT_PANEL_TIMEOUT: "TRANSCRIPT_PANEL_TIMEOUT",
+    TRANSCRIPT_PANEL_EMPTY: "TRANSCRIPT_PANEL_EMPTY",
+    TRANSCRIPT_PANEL_ERROR: "TRANSCRIPT_PANEL_ERROR",
+    TRANSCRIPT_INNERTUBE_CONFIG_UNAVAILABLE: "TRANSCRIPT_INNERTUBE_CONFIG_UNAVAILABLE",
+    TRANSCRIPT_FETCH_FAILED: "TRANSCRIPT_FETCH_FAILED",
+    TRANSCRIPT_PARSE_FAILED: "TRANSCRIPT_PARSE_FAILED",
+    CAPTION_URL_FETCH_FAILED: "CAPTION_URL_FETCH_FAILED",
+    CAPTION_RESPONSE_EMPTY: "CAPTION_RESPONSE_EMPTY",
+    SUBTITLE_PARSE_FAILED: "SUBTITLE_PARSE_FAILED",
+    INNERTUBE_CONFIG_UNAVAILABLE: "INNERTUBE_CONFIG_UNAVAILABLE",
+    NO_CAPTION_TRACKS: "NO_CAPTION_TRACKS",
+  },
   lastFailureReason: null,
+  lastOpenTranscriptFailureReason: null,
 
   extract() {
     return {
@@ -35,7 +52,7 @@ const YoutubeExtractor = {
     console.debug("[YouTubeExtractor] Starting extraction", { videoId: videoId });
 
     if (!videoId) {
-      this._recordFailure("UNSUPPORTED_YOUTUBE_PAGE");
+      this._recordFailure(this.FAILURE_REASONS.UNSUPPORTED_YOUTUBE_PAGE);
       return this._transcriptUnavailable(title, url);
     }
 
@@ -73,9 +90,12 @@ const YoutubeExtractor = {
    */
   async _fetchSubtitle(videoId) {
     this.lastFailureReason = null;
+    this.lastOpenTranscriptFailureReason = null;
     const transcript = await this.getTranscript(videoId);
     if (!transcript || !transcript.lines.length) {
-      this._recordFailure("TRANSCRIPT_PANEL_UNAVAILABLE");
+      if (!this.lastFailureReason) {
+        this._recordFailure(this.FAILURE_REASONS.TRANSCRIPT_PANEL_UNAVAILABLE);
+      }
       return null;
     }
 
@@ -93,19 +113,21 @@ const YoutubeExtractor = {
       await this._resetTranscriptPanelBeforeOpen(videoId);
       openButton = await this._openTranscriptPanel();
       if (!openButton) {
-        this._recordFailure("TRANSCRIPT_BUTTON_NOT_FOUND");
+        this._recordFailure(
+          this.lastOpenTranscriptFailureReason || this.FAILURE_REASONS.TRANSCRIPT_BUTTON_NOT_FOUND
+        );
         return null;
       }
 
       const transcript = this._readTranscriptSegments();
       if (!transcript || !transcript.lines.length) {
-        this._recordFailure("TRANSCRIPT_PANEL_EMPTY");
+        this._recordFailure(this.FAILURE_REASONS.TRANSCRIPT_PANEL_EMPTY);
         return null;
       }
 
       return transcript;
     } catch (e) {
-      this._recordFailure("TRANSCRIPT_PANEL_ERROR", e.message);
+      this._recordFailure(this.FAILURE_REASONS.TRANSCRIPT_PANEL_ERROR, e.message);
       return null;
     } finally {
       if (openButton) {
@@ -135,6 +157,7 @@ const YoutubeExtractor = {
         stableMs: 500,
       });
       if (stable) return clickable;
+      this.lastOpenTranscriptFailureReason = this.FAILURE_REASONS.TRANSCRIPT_PANEL_TIMEOUT;
     }
 
     return null;
@@ -439,7 +462,7 @@ const YoutubeExtractor = {
   async _fetchTranscriptFromPanel(playerData) {
     const params = playerData?.transcriptParams;
     if (!params) {
-      this._recordFailure("TRANSCRIPT_PANEL_UNAVAILABLE");
+      this._recordFailure(this.FAILURE_REASONS.TRANSCRIPT_PANEL_UNAVAILABLE);
       return null;
     }
 
@@ -448,7 +471,7 @@ const YoutubeExtractor = {
       innerTube = this._extractInnerTubeConfigFromPageSource() || innerTube;
     }
     if (!innerTube?.apiKey) {
-      this._recordFailure("TRANSCRIPT_INNERTUBE_CONFIG_UNAVAILABLE");
+      this._recordFailure(this.FAILURE_REASONS.TRANSCRIPT_INNERTUBE_CONFIG_UNAVAILABLE);
       return null;
     }
 
@@ -473,18 +496,18 @@ const YoutubeExtractor = {
         }
       );
       if (!response.ok) {
-        this._recordFailure("TRANSCRIPT_FETCH_FAILED", String(response.status));
+        this._recordFailure(this.FAILURE_REASONS.TRANSCRIPT_FETCH_FAILED, String(response.status));
         return null;
       }
 
       const data = await response.json();
       const transcript = this._parseTranscriptResponse(data);
       if (!transcript) {
-        this._recordFailure("TRANSCRIPT_PARSE_FAILED");
+        this._recordFailure(this.FAILURE_REASONS.TRANSCRIPT_PARSE_FAILED);
       }
       return transcript;
     } catch (e) {
-      this._recordFailure("TRANSCRIPT_FETCH_FAILED", e.message);
+      this._recordFailure(this.FAILURE_REASONS.TRANSCRIPT_FETCH_FAILED, e.message);
       return null;
     }
   },
@@ -555,7 +578,7 @@ const YoutubeExtractor = {
     try {
       const resp = await fetch(url, { credentials: "include" });
       if (!resp.ok) {
-        this._recordFailure("CAPTION_URL_FETCH_FAILED", String(resp.status));
+        this._recordFailure(this.FAILURE_REASONS.CAPTION_URL_FETCH_FAILED, String(resp.status));
         return null;
       }
       let text = await resp.text();
@@ -566,7 +589,7 @@ const YoutubeExtractor = {
           text = pageResponse.text || "";
         }
         if (!text || text.length < 10) {
-          this._recordFailure("CAPTION_RESPONSE_EMPTY", label);
+          this._recordFailure(this.FAILURE_REASONS.CAPTION_RESPONSE_EMPTY, label);
           return null;
         }
       }
@@ -574,10 +597,10 @@ const YoutubeExtractor = {
       const subtitle = format === "json"
         ? this._parseJsonSubtitle(text)
         : this._parseTimedTextSubtitle(text);
-      if (!subtitle) this._recordFailure("SUBTITLE_PARSE_FAILED", label);
+      if (!subtitle) this._recordFailure(this.FAILURE_REASONS.SUBTITLE_PARSE_FAILED, label);
       return subtitle;
     } catch (e) {
-      this._recordFailure("CAPTION_URL_FETCH_FAILED", e.message);
+      this._recordFailure(this.FAILURE_REASONS.CAPTION_URL_FETCH_FAILED, e.message);
       return null;
     }
   },
@@ -886,7 +909,7 @@ const YoutubeExtractor = {
       innerTube = this._extractInnerTubeConfigFromPageSource() || innerTube;
     }
     if (!innerTube?.apiKey || !innerTube.client?.clientVersion) {
-      this._recordFailure("INNERTUBE_CONFIG_UNAVAILABLE");
+      this._recordFailure(this.FAILURE_REASONS.INNERTUBE_CONFIG_UNAVAILABLE);
       return null;
     }
     const client = {
@@ -915,7 +938,7 @@ const YoutubeExtractor = {
         }
       );
       if (!response.ok) {
-        this._recordFailure("CAPTION_URL_FETCH_FAILED", "InnerTube " + response.status);
+        this._recordFailure(this.FAILURE_REASONS.CAPTION_URL_FETCH_FAILED, "InnerTube " + response.status);
         return null;
       }
 
@@ -924,9 +947,9 @@ const YoutubeExtractor = {
       if (Array.isArray(tracks) && tracks.length > 0) {
         return tracks;
       }
-      this._recordFailure("NO_CAPTION_TRACKS", "InnerTube");
+      this._recordFailure(this.FAILURE_REASONS.NO_CAPTION_TRACKS, "InnerTube");
     } catch (e) {
-      this._recordFailure("CAPTION_URL_FETCH_FAILED", "InnerTube " + e.message);
+      this._recordFailure(this.FAILURE_REASONS.CAPTION_URL_FETCH_FAILED, "InnerTube " + e.message);
     }
     return null;
   },
