@@ -1,45 +1,66 @@
 # Privacy Policy — AI Summary Assistant
 
-**Last updated: March 2026**
+_Last updated: June 16, 2026_
 
-## Overview
+AI Summary Assistant ("the extension") helps you summarize the article or captioned
+video on the page you are viewing. This policy explains what data the extension
+handles and how.
 
-AI Summary Assistant is a Chrome browser extension that extracts webpage content and video subtitles, then generates AI-powered summaries, mind maps, and translations. We are committed to protecting your privacy.
+## What the extension processes
 
-## Data Collection
+**Page content you choose to summarize.** When you click the summarize or translate
+button, the extension reads the text of the current article, or the transcript of the
+current video. By default, this text is sent over HTTPS to our backend server, which
+forwards it to a third-party AI provider (DeepSeek) to generate the summary, key
+points, mind map, or translation. The result is returned to you. This content is used
+only to produce the summary or translation you requested.
 
-### What we collect
-- **Nothing.** This extension does not collect, store, or transmit any personal data to our servers.
+**Your own API key (optional).** If you add your own DeepSeek or OpenAI API key in
+Settings, AI requests are sent directly from your browser to that provider, and your
+key is stored only in your browser's local storage. Your key is never sent to our
+backend.
 
-### What stays on your device
-- **API Keys**: Your AI service API keys (DeepSeek / OpenAI) are stored locally in your browser's `chrome.storage.local` and are never sent to any server other than the AI provider you selected.
-- **Settings**: Your language preference and UI settings are stored locally.
-- **Login credentials** (optional): If you choose to register an account for cloud history sync, your email and encrypted password are stored on our backend server. This feature is optional and the extension works fully without it.
+**Usage information.** To provide a limited free service and prevent abuse, our
+backend records the number of requests associated with your session or IP address.
+Your IP address is used only for this rate-limiting purpose; it is not used to track
+your location or to build a profile.
 
-## Third-Party Services
+**Settings and history.** Your interface language, your optional API key, and your
+summary history are stored locally in your browser.
+〔If you sign in to enable cloud sync, your account email address and your saved
+summaries are stored on our backend so they can be synced across your devices. Remove
+this paragraph if the version you submit has no sign-in / cloud feature.〕
 
-This extension communicates with the following third-party services **only when you initiate an action**:
+**Exports (optional).** If you export a summary to Notion, you authorize the connection
+through Notion's OAuth, and only the summary you choose is sent to your own Notion
+workspace at your request. Exports to Obsidian, Logseq, or PDF are generated locally in
+your browser.
 
-- **DeepSeek API** or **OpenAI API** — to generate summaries (using your own API key)
-- **Notion API** (optional) — if you choose to export summaries to Notion
+## Third parties
 
-No data is sent to these services automatically or in the background.
+The page content you summarize is processed by DeepSeek — or, if you configure your own
+key, by DeepSeek or OpenAI — solely to generate your summary or translation. We do not
+sell your data, and we do not use or transfer it for any purpose unrelated to providing
+this feature.
 
-## Permissions
+## Data retention
 
-- `activeTab` — to extract content from the current webpage
-- `sidePanel` — to display the summary sidebar
-- `storage` — to save your settings locally
+Summaries kept for your history remain until you delete them or remove the extension
+(for data stored locally) 〔or delete your account, if cloud sync is enabled〕. Usage
+counters are kept only as long as needed for rate-limiting.
 
-## Data Security
+## Your choices
 
-All data processing happens locally in your browser. API keys are never exposed to any server other than the AI provider. We do not use analytics, tracking, or advertising.
-
-## Changes
-
-We may update this privacy policy from time to time. Changes will be posted on this page.
+You can clear your local history and settings at any time from within the extension or
+by removing it. You can add your own API key to send AI requests directly to the
+provider instead of through our backend.
 
 ## Contact
 
-If you have questions about this privacy policy, please open an issue at:
-https://github.com/christo-chen/Summary-of-long-video-content/issues
+Questions about this policy: 〔christochen1109@gmail.com — replace if you prefer another
+contact email〕
+
+## Changes
+
+We may update this policy from time to time. The "Last updated" date above reflects the
+most recent change.
