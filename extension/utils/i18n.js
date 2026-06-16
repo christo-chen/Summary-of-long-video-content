@@ -154,6 +154,7 @@ const I18n = {
 
       // 翻译
       translateFailed: "翻译失败：",
+      translateRetryLater: "翻译服务暂时不可用，请稍后重试。",
 
       // source types
       sourceArticle: "📄 文章",
@@ -291,6 +292,7 @@ const I18n = {
       btnGoToSettings: "Go to Settings",
 
       translateFailed: "Translation failed: ",
+      translateRetryLater: "Translation is temporarily unavailable. Please try again later.",
 
       sourceArticle: "📄 Article",
       sourceBilibili: "📺 Bilibili",

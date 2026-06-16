@@ -42,6 +42,16 @@ const AiClient = {
     });
   },
 
+  async _fetchWithTimeout(url, options, timeoutMs = 120000) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
+  },
+
   /**
    * 调用 AI API 生成摘要
    * @param {string} sourceType - 内容来源类型
@@ -135,6 +145,101 @@ const AiClient = {
     }
 
     return result.data.summary;
+  },
+
+  async translate(content, targetLang, sourceType) {
+    const config = await this.getConfig();
+
+    if (!config.apiKey) {
+      const headers = { "Content-Type": "application/json" };
+      const token = await BackendApi.getToken();
+      if (token) {
+        headers["Authorization"] = "Bearer " + token;
+      }
+
+      let response;
+      try {
+        response = await this._fetchWithTimeout(BackendApi.BASE_URL + "/translate", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ content, targetLang, sourceType }),
+        });
+      } catch (e) {
+        throw new Error(I18n.t("translateRetryLater"));
+      }
+
+      const result = await response.json();
+      if (response.status === 429 || result.code === 429) {
+        const err = new Error(I18n.t("errorFreeQuotaExhausted"));
+        err.isQuotaExhausted = true;
+        throw err;
+      }
+      if (!response.ok || result.code !== 200) {
+        throw new Error(result.message || I18n.t("translateRetryLater"));
+      }
+
+      return {
+        translated: result.data?.translated || "",
+        showSoftReminder: Boolean(result.data?.showSoftReminder),
+        usedCount: result.data?.usedCount || 0,
+      };
+    }
+
+    let baseUrl, model;
+    if (config.provider === "openai") {
+      baseUrl = config.openaiBaseUrl;
+      model = config.openaiModel;
+    } else {
+      baseUrl = config.deepseekBaseUrl;
+      model = config.deepseekModel;
+    }
+
+    let response;
+    try {
+      response = await this._fetchWithTimeout(baseUrl + "/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + config.apiKey,
+        },
+        body: JSON.stringify({
+          model: model,
+          messages: [
+            {
+              role: "system",
+              content: "You are a professional translator. Translate the following JSON content to " + targetLang + ". Keep the exact same JSON structure and keys. Only translate the values. For mindmap_markdown, translate the text content but keep the Markdown heading syntax (#, ##, ###, -) intact. Return ONLY valid JSON, no extra text or markdown code blocks."
+            },
+            { role: "user", content: content }
+          ],
+          temperature: 0.3,
+          max_tokens: 4000,
+        }),
+      });
+    } catch (e) {
+      throw new Error(I18n.t("translateRetryLater"));
+    }
+
+    if (!response.ok) {
+      if (response.status === 429) {
+        const err = new Error(I18n.t("errorFreeQuotaExhausted"));
+        err.isQuotaExhausted = true;
+        throw err;
+      }
+      throw new Error(I18n.t("translateRetryLater"));
+    }
+
+    const data = await response.json();
+    let text = data.choices[0].message.content.trim();
+    if (text.startsWith("```json")) text = text.slice(7);
+    else if (text.startsWith("```")) text = text.slice(3);
+    if (text.endsWith("```")) text = text.slice(0, -3);
+    text = text.trim();
+
+    return {
+      translated: text,
+      showSoftReminder: false,
+      usedCount: 0,
+    };
   },
 
   /**

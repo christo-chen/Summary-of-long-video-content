@@ -951,54 +951,13 @@ $("btn-translate").addEventListener("click", async () => {
       mindmap_markdown: lastResult.mindmap_markdown || "",
     });
 
-    const config = await AiClient.getConfig();
-    if (!config.apiKey) {
-      throw new Error("No API Key");
+    const translation = await AiClient.translate(toTranslate, targetLang, lastResult.sourceType);
+    let translated;
+    try {
+      translated = JSON.parse(translation.translated);
+    } catch (parseError) {
+      throw new Error(I18n.t("translateRetryLater"));
     }
-
-    let baseUrl, model;
-    if (config.provider === "openai") {
-      baseUrl = config.openaiBaseUrl;
-      model = config.openaiModel;
-    } else {
-      baseUrl = config.deepseekBaseUrl;
-      model = config.deepseekModel;
-    }
-
-    const response = await fetch(baseUrl + "/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer " + config.apiKey,
-      },
-      body: JSON.stringify({
-        model: model,
-        messages: [
-          {
-            role: "system",
-            content: "You are a professional translator. Translate the following JSON content to " + targetLang + ". Keep the exact same JSON structure and keys. Only translate the values. For mindmap_markdown, translate the text content but keep the Markdown heading syntax (#, ##, ###, -) intact. Return ONLY valid JSON, no extra text or markdown code blocks."
-          },
-          { role: "user", content: toTranslate }
-        ],
-        temperature: 0.3,
-        max_tokens: 2000,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error("API " + response.status);
-    }
-
-    const data = await response.json();
-    let text = data.choices[0].message.content.trim();
-
-    // 清理可能的 markdown 代码块
-    if (text.startsWith("```json")) text = text.slice(7);
-    else if (text.startsWith("```")) text = text.slice(3);
-    if (text.endsWith("```")) text = text.slice(0, -3);
-    text = text.trim();
-
-    const translated = JSON.parse(text);
 
     // 更新显示
     lastResult = {
@@ -1026,10 +985,11 @@ $("btn-translate").addEventListener("click", async () => {
     isTranslated = true;
     $("btn-translate").textContent = I18n.t("btnTranslated") + " ↩";
     $("btn-translate").disabled = false;
+    showProxyReminderIfNeeded({ __showSoftReminder: translation.showSoftReminder });
 
   } catch (e) {
     console.error("翻译失败：", e);
-    showToast(I18n.t("translateFailed") + e.message);
+    showToast(e.isQuotaExhausted ? I18n.t("errorFreeQuotaExhausted") : (e.message || I18n.t("translateRetryLater")));
     $("btn-translate").textContent = I18n.t("btnTranslate");
     $("btn-translate").disabled = false;
   }

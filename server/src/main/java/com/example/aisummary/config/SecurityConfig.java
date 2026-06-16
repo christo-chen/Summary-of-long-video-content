@@ -39,6 +39,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/summaries").permitAll()
                 // AI 生成接口支持未登录（免费试用，按 IP 计数）
                 .requestMatchers(HttpMethod.POST, "/api/ai/generate").permitAll()
+                // 翻译接口支持未登录（免费试用，按 IP 计数）
+                .requestMatchers(HttpMethod.POST, "/api/translate").permitAll()
                 // 视频字幕总结接口支持未登录
                 .requestMatchers(HttpMethod.POST, "/api/video/transcript-summary").permitAll()
                 // 其他所有接口需要登录

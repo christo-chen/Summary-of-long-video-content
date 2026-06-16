@@ -1,8 +1,10 @@
 package com.example.aisummary.service;
 
+import com.example.aisummary.exception.AiProxyException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -14,6 +16,7 @@ import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -21,18 +24,24 @@ import java.util.Map;
  * 后端 AI 代理服务：使用内置 DeepSeek API Key 生成摘要。
  * Prompt 逻辑与 extension/utils/prompts.js 保持一致。
  */
+@Slf4j
 @Service
 public class AiProxyService {
 
     private static final String DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions";
     private static final String MODEL        = "deepseek-v4-flash";
     private static final int    MAX_CONTENT_LENGTH = 50_000;
+    private static final int    DEFAULT_TRANSLATE_CHUNK_SIZE = 3_000;
 
     @Value("${DEEPSEEK_API_KEY:}")
     private String apiKey;
 
+    @Value("${ai.translate.chunk-size:" + DEFAULT_TRANSLATE_CHUNK_SIZE + "}")
+    private int translateChunkSize;
+
     private final ObjectMapper objectMapper;
     private final RestTemplate restTemplate;
+    private RestTemplate translateRestTemplate;
 
     public AiProxyService(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
@@ -40,6 +49,7 @@ public class AiProxyService {
         factory.setConnectTimeout(Duration.ofSeconds(10));
         factory.setReadTimeout(Duration.ofSeconds(30));
         this.restTemplate = new RestTemplate(factory);
+        this.translateRestTemplate = createTranslateRestTemplate();
     }
 
     /**
@@ -87,6 +97,158 @@ public class AiProxyService {
         } catch (ResourceAccessException e) {
             throw new RuntimeException("AI 服务超时，请稍后重试");
         }
+    }
+
+    /**
+     * 调用 DeepSeek 翻译文本。长文本按段落切块，不截断内容。
+     *
+     * @param content    待翻译文本
+     * @param targetLang 目标语言，如 en / zh / English / 中文
+     * @return 翻译后的文本
+     */
+    public String translate(String content, String targetLang) {
+        if (!StringUtils.hasText(apiKey)) {
+            throw new RuntimeException("未配置内置 AI 服务，请联系管理员");
+        }
+        if (!StringUtils.hasText(content)) {
+            throw new RuntimeException("待翻译内容不能为空");
+        }
+        if (!StringUtils.hasText(targetLang)) {
+            throw new RuntimeException("目标语言不能为空");
+        }
+
+        int chunkSize = translateChunkSize > 0 ? translateChunkSize : DEFAULT_TRANSLATE_CHUNK_SIZE;
+        List<String> chunks = splitForTranslation(content, chunkSize);
+        if (chunks.size() > 1) {
+            log.info("AI translate chunking: contentLen={} chunkSize={} chunks={}",
+                    content.length(), chunkSize, chunks.size());
+        }
+
+        StringBuilder translated = new StringBuilder();
+        for (int i = 0; i < chunks.size(); i++) {
+            translated.append(translateChunk(chunks.get(i), targetLang, i + 1, chunks.size()));
+        }
+        return translated.toString();
+    }
+
+    private RestTemplate createTranslateRestTemplate() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(Duration.ofSeconds(10));
+        factory.setReadTimeout(Duration.ofSeconds(90));
+        return new RestTemplate(factory);
+    }
+
+    private String translateChunk(String content, String targetLang, int chunkIndex, int chunkTotal) {
+        Map<String, Object> body = Map.of(
+                "model", MODEL,
+                "messages", List.of(
+                        Map.of("role", "system", "content",
+                                "你是一个专业翻译助手。把以下内容翻译成 " + targetLang
+                                        + "，保留原 Markdown/换行/格式，只输出译文。"),
+                        Map.of("role", "user", "content", content)
+                ),
+                "temperature", 0.2,
+                "max_tokens", 4000
+        );
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("Authorization", "Bearer " + apiKey);
+
+        try {
+            ResponseEntity<JsonNode> response = translateRestTemplate.exchange(
+                    DEEPSEEK_URL, HttpMethod.POST,
+                    new HttpEntity<>(body, headers),
+                    JsonNode.class
+            );
+            JsonNode message = response.getBody() == null
+                    ? null : response.getBody().at("/choices/0/message/content");
+            if (message == null || message.isMissingNode() || !message.isTextual()) {
+                throw new AiProxyException(502, "AI 翻译服务返回格式异常");
+            }
+            return unwrapCodeFence(message.asText());
+
+        } catch (HttpClientErrorException | HttpServerErrorException e) {
+            log.warn("AI translate upstream failure: chunk={}/{} status={} body={}",
+                    chunkIndex, chunkTotal, e.getStatusCode().value(), e.getResponseBodyAsString());
+            throw new AiProxyException(502,
+                    "AI 翻译服务调用失败 (" + e.getStatusCode().value() + ")");
+        } catch (ResourceAccessException e) {
+            log.warn("AI translate upstream timeout: chunk={}/{} message={}",
+                    chunkIndex, chunkTotal, e.getMessage());
+            throw new AiProxyException(504, "AI 翻译服务超时，请稍后重试");
+        }
+    }
+
+    private List<String> splitForTranslation(String content, int maxChunkSize) {
+        if (content.length() <= maxChunkSize) {
+            return List.of(content);
+        }
+
+        List<String> chunks = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        int start = 0;
+        while (start < content.length()) {
+            int end = findNextParagraphEnd(content, start);
+            if (end <= start) {
+                end = content.length();
+            }
+            appendTranslationSegment(chunks, current, content.substring(start, end), maxChunkSize);
+            start = end;
+        }
+        if (!current.isEmpty()) {
+            chunks.add(current.toString());
+        }
+        return chunks;
+    }
+
+    private int findNextParagraphEnd(String content, int start) {
+        int unix = content.indexOf("\n\n", start);
+        int windows = content.indexOf("\r\n\r\n", start);
+        if (unix < 0 && windows < 0) {
+            return content.length();
+        }
+        if (unix < 0) {
+            return windows + 4;
+        }
+        if (windows < 0) {
+            return unix + 2;
+        }
+        return Math.min(unix + 2, windows + 4);
+    }
+
+    private void appendTranslationSegment(List<String> chunks, StringBuilder current,
+                                          String segment, int maxChunkSize) {
+        if (segment.length() > maxChunkSize) {
+            flushChunk(chunks, current);
+            for (int i = 0; i < segment.length(); i += maxChunkSize) {
+                chunks.add(segment.substring(i, Math.min(i + maxChunkSize, segment.length())));
+            }
+            return;
+        }
+
+        if (!current.isEmpty() && current.length() + segment.length() > maxChunkSize) {
+            flushChunk(chunks, current);
+        }
+        current.append(segment);
+    }
+
+    private void flushChunk(List<String> chunks, StringBuilder current) {
+        if (!current.isEmpty()) {
+            chunks.add(current.toString());
+            current.setLength(0);
+        }
+    }
+
+    private String unwrapCodeFence(String text) {
+        String trimmed = text.trim();
+        if (trimmed.startsWith("```")) {
+            int firstLineEnd = trimmed.indexOf('\n');
+            if (firstLineEnd >= 0 && trimmed.endsWith("```")) {
+                return trimmed.substring(firstLineEnd + 1, trimmed.length() - 3).trim();
+            }
+        }
+        return text;
     }
 
     // ---- 响应解析（对齐 api.js _parseResponse）----

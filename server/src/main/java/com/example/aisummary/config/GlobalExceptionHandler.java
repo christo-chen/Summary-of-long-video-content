@@ -1,8 +1,10 @@
 package com.example.aisummary.config;
 
 import com.example.aisummary.dto.Result;
+import com.example.aisummary.exception.AiProxyException;
 import com.example.aisummary.exception.UsageLimitExceededException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -14,6 +16,12 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(AiProxyException.class)
+    public ResponseEntity<Result<?>> handleAiProxyException(AiProxyException e) {
+        HttpStatus status = e.getCode() == 504 ? HttpStatus.GATEWAY_TIMEOUT : HttpStatus.BAD_GATEWAY;
+        return ResponseEntity.status(status).body(Result.error(e.getCode(), e.getMessage()));
+    }
 
     @ExceptionHandler(UsageLimitExceededException.class)
     @ResponseStatus(HttpStatus.TOO_MANY_REQUESTS)
