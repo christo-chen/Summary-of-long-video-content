@@ -10,6 +10,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 
 /**
  * 全局异常处理器
@@ -27,6 +28,13 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.TOO_MANY_REQUESTS)
     public Result<?> handleUsageLimitExceeded(UsageLimitExceededException e) {
         return Result.error(429, e.getMessage());
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<Result<?>> handleResponseStatusException(ResponseStatusException e) {
+        int status = e.getStatusCode().value();
+        String message = e.getReason() != null ? e.getReason() : e.getMessage();
+        return ResponseEntity.status(status).body(Result.error(status, message));
     }
 
     /**

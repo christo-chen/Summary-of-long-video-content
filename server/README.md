@@ -39,6 +39,13 @@ mvn spring-boot:run
 
 服务启动后访问 http://localhost:8080
 
+## 部署注意事项
+
+- Nginx 需要配置 `client_max_body_size 55M;`，否则音视频上传可能在进入后端前被拒绝。
+- 服务器真实 `src/main/resources/application.yml` 需要同步 `application.yml.example` 中的 multipart、OSS、DashScope、ASR worker 配置。
+- B3 音视频转写上线前，建议将 `aisummary` systemd 服务的 JVM 参数从 `-Xmx256m` 提升到 `-Xmx512m` 到 `-Xmx768m`。
+- 日志滚动策略沿用 `logback-spring.xml`，当前为 `maxFileSize=10MB`、`maxHistory=7`、`totalSizeCap=100MB`。
+
 ## API 接口
 
 | 方法   | 路径                              | 说明              | 需要登录 |

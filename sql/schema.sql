@@ -67,3 +67,22 @@ CREATE TABLE IF NOT EXISTS `usage_record` (
     UNIQUE KEY `uk_user_id` (`user_id`),
     UNIQUE KEY `uk_ip_address` (`ip_address`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='免费额度使用记录表';
+
+-- 音视频异步转写摘要任务表
+CREATE TABLE IF NOT EXISTS `asr_job` (
+    `id`               BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键',
+    `user_id`          BIGINT       NOT NULL                COMMENT '所属用户ID',
+    `oss_key`          VARCHAR(512) NOT NULL                COMMENT 'OSS对象Key',
+    `status`           VARCHAR(20)  NOT NULL                COMMENT '任务状态: QUEUED/RUNNING/SUCCEEDED/FAILED',
+    `task_id`          VARCHAR(128) DEFAULT NULL            COMMENT 'DashScope异步任务ID',
+    `summary`          JSON         DEFAULT NULL            COMMENT '结构化摘要内容(JSON)',
+    `error_code`       VARCHAR(64)  DEFAULT NULL            COMMENT '失败错误码',
+    `file_size`        BIGINT       NOT NULL                COMMENT '上传文件大小(字节)',
+    `duration_seconds` INT          DEFAULT NULL            COMMENT '转写完成后回填的时长(秒)',
+    `created_at`       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at`       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_asr_job_user_status` (`user_id`, `status`),
+    KEY `idx_asr_job_created_at` (`created_at`),
+    CONSTRAINT `fk_asr_job_user` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='音视频异步转写摘要任务表';
