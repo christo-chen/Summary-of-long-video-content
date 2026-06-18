@@ -44,7 +44,9 @@ function showState(state) {
   $("state-" + state).classList.remove("hidden");
 }
 
-function showError(msg, showSettingsBtn = false) {
+let currentRetryHandler = generateSummary;
+
+function showError(msg, showSettingsBtn = false, retryHandler = null) {
   $("error-message").textContent = msg;
   const settingsBtn = $("btn-error-goto-settings");
   if (showSettingsBtn) {
@@ -52,6 +54,8 @@ function showError(msg, showSettingsBtn = false) {
   } else {
     settingsBtn.classList.add("hidden");
   }
+  currentRetryHandler = retryHandler || generateSummary;
+  $("btn-retry").textContent = retryHandler === uploadSelectedAudio ? I18n.t("audioRetryUpload") : I18n.t("btnRetry");
   showState("error");
 }
 
@@ -168,12 +172,343 @@ function getSourceLabel(type) {
 }
 const SOURCE_TYPE_COLORS = {
   article: "#2e86c1", bilibili: "#fb7299", youtube: "#ff0000",
-  github: "#333333", stackoverflow: "#f48024",
+  github: "#333333", stackoverflow: "#f48024", audio: "#16a085",
 };
 
+const AUDIO_MAX_BYTES = 50 * 1024 * 1024;
+const AUDIO_MAX_DURATION_SECONDS = 30 * 60;
+const ASR_POLL_INTERVAL_MS = 3000;
+const ASR_FRONTEND_TIMEOUT_MS = 42 * 60 * 1000;
+const ASR_MAX_NETWORK_FAILURES = 4;
+const ASR_STORAGE_KEY = "activeAsrJob";
+const AUDIO_ALLOWED_EXTENSIONS = new Set(["mp3", "m4a", "wav", "aac", "flac", "mp4"]);
+const AUDIO_ALLOWED_MIME = new Set([
+  "audio/mpeg", "audio/mp3", "audio/x-mpeg", "audio/mpeg3", "audio/x-mpeg-3",
+  "audio/mp4", "audio/m4a", "audio/x-m4a",
+  "audio/wav", "audio/x-wav", "audio/wave", "audio/vnd.wave",
+  "audio/aac", "audio/x-aac", "audio/aacp",
+  "audio/flac", "audio/x-flac", "application/flac",
+  "video/mp4", "application/mp4",
+]);
+
+let audioSelectedFile = null;
+let audioSelectedDuration = null;
+let asrPollTimer = null;
+let asrElapsedTimer = null;
+let activeAsrJob = null;
+let asrNetworkFailures = 0;
+
+function formatText(template, vars) {
+  return Object.keys(vars).reduce((text, key) => (
+    text.replace(new RegExp("\\{" + key + "\\}", "g"), vars[key])
+  ), template);
+}
+
+function formatBytes(bytes) {
+  if (!Number.isFinite(bytes)) return "";
+  if (bytes >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+  if (bytes >= 1024) return (bytes / 1024).toFixed(1) + " KB";
+  return bytes + " B";
+}
+
+function formatDuration(seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) return "";
+  const total = Math.round(seconds);
+  const mins = Math.floor(total / 60);
+  const secs = total % 60;
+  return mins + ":" + String(secs).padStart(2, "0");
+}
+
+function formatElapsed(startedAt) {
+  const elapsedMs = Math.max(0, Date.now() - startedAt);
+  const mins = Math.floor(elapsedMs / 60000);
+  const secs = Math.floor((elapsedMs % 60000) / 1000);
+  return mins + ":" + String(secs).padStart(2, "0");
+}
+
+function getFileExtension(file) {
+  const name = file?.name || "";
+  const dot = name.lastIndexOf(".");
+  return dot >= 0 ? name.slice(dot + 1).toLowerCase() : "";
+}
+
+function getAudioSourceUrl(fileName) {
+  return "audio://" + encodeURIComponent(fileName || "uploaded-audio");
+}
+
+function setAudioWarning(message) {
+  const warning = $("audio-upload-warning");
+  if (message) {
+    warning.textContent = message;
+    warning.classList.remove("hidden");
+  } else {
+    warning.textContent = "";
+    warning.classList.add("hidden");
+  }
+}
+
+function setAudioControlsDisabled(disabled) {
+  $("btn-choose-audio").disabled = disabled;
+  $("btn-upload-audio").disabled = disabled;
+  $("audio-file-input").disabled = disabled;
+}
+
+function readMediaDuration(file) {
+  return new Promise((resolve) => {
+    const audio = document.createElement("audio");
+    const objectUrl = URL.createObjectURL(file);
+    let settled = false;
+
+    const finish = (duration) => {
+      if (settled) return;
+      settled = true;
+      URL.revokeObjectURL(objectUrl);
+      audio.removeAttribute("src");
+      audio.load();
+      resolve(duration);
+    };
+
+    audio.preload = "metadata";
+    audio.onloadedmetadata = () => {
+      const duration = Number.isFinite(audio.duration) ? audio.duration : null;
+      finish(duration);
+    };
+    audio.onerror = () => finish(null);
+    audio.src = objectUrl;
+
+    setTimeout(() => finish(null), 5000);
+  });
+}
+
+async function handleAudioFileSelected(file) {
+  audioSelectedFile = null;
+  audioSelectedDuration = null;
+  $("btn-upload-audio").classList.add("hidden");
+  $("audio-file-info").classList.add("hidden");
+  setAudioWarning("");
+
+  if (!file) return;
+
+  const extension = getFileExtension(file);
+  if (!AUDIO_ALLOWED_EXTENSIONS.has(extension)) {
+    setAudioWarning(I18n.t("audioUnsupportedExtension"));
+    return;
+  }
+
+  if (file.size > AUDIO_MAX_BYTES) {
+    setAudioWarning(I18n.t("audioFileTooLarge"));
+    return;
+  }
+
+  const warnings = [];
+  const normalizedMime = (file.type || "").trim().toLowerCase();
+  if (normalizedMime && !AUDIO_ALLOWED_MIME.has(normalizedMime)) {
+    warnings.push(I18n.t("audioMimeWarning"));
+  }
+
+  const duration = await readMediaDuration(file);
+  audioSelectedDuration = duration;
+  if (duration == null) {
+    warnings.push(I18n.t("audioDurationUnknown"));
+  } else if (duration > AUDIO_MAX_DURATION_SECONDS) {
+    warnings.push(I18n.t("audioDurationTooLong"));
+  }
+
+  audioSelectedFile = file;
+  $("audio-file-name").textContent = file.name;
+  const metaKey = duration == null ? "audioSelectedMeta" : "audioSelectedMetaWithDuration";
+  $("audio-file-meta").textContent = formatText(I18n.t(metaKey), {
+    size: formatBytes(file.size),
+    duration: formatDuration(duration),
+  });
+  $("audio-file-info").classList.remove("hidden");
+  $("btn-upload-audio").classList.remove("hidden");
+  setAudioWarning(warnings.join(" "));
+}
+
+function clearAsrPolling() {
+  if (asrPollTimer) {
+    clearTimeout(asrPollTimer);
+    asrPollTimer = null;
+  }
+  if (asrElapsedTimer) {
+    clearInterval(asrElapsedTimer);
+    asrElapsedTimer = null;
+  }
+}
+
+function saveActiveAsrJob(job) {
+  return new Promise((resolve) => chrome.storage.local.set({ [ASR_STORAGE_KEY]: job }, resolve));
+}
+
+function clearActiveAsrJob() {
+  activeAsrJob = null;
+  return new Promise((resolve) => chrome.storage.local.remove(ASR_STORAGE_KEY, resolve));
+}
+
+function getActiveAsrJob() {
+  return new Promise((resolve) => chrome.storage.local.get(ASR_STORAGE_KEY, res => resolve(res[ASR_STORAGE_KEY] || null)));
+}
+
+function updateAsrLoadingText(statusTextKey = "audioTranscribing", retryCount = null) {
+  if (!activeAsrJob) return;
+  const elapsed = formatElapsed(activeAsrJob.startedAt);
+  $("loading-text-main").textContent = I18n.t(statusTextKey);
+  const subKey = retryCount == null ? "audioLongTaskHint" : "audioNetworkRetry";
+  $("loading-sub").textContent = formatText(I18n.t(subKey), {
+    elapsed,
+    count: retryCount,
+    jobId: activeAsrJob.jobId,
+  });
+}
+
+function startAsrElapsedTicker(statusTextKey = "audioTranscribing") {
+  if (asrElapsedTimer) clearInterval(asrElapsedTimer);
+  updateAsrLoadingText(statusTextKey);
+  asrElapsedTimer = setInterval(() => updateAsrLoadingText(statusTextKey), 1000);
+}
+
+function mapAsrError(errorCode, fallbackMessage, status) {
+  if (status === 401 || status === 403) return I18n.t("audioLoginRequired");
+  if (status === 413 || errorCode === "ASR_FILE_TOO_LARGE") return I18n.t("audioFileTooLarge");
+  if (errorCode === "ASR_TIMEOUT") return I18n.t("audioTimeout");
+  if (errorCode === "FILE_NORMALIZE_FAILED") return I18n.t("audioNormalizeFailed");
+  if (errorCode === "ASR_TASK_FAILED" || errorCode === "ASR_FAILED") return I18n.t("audioFailed");
+  if (errorCode === "ASR_TASK_CANCELED") return I18n.t("audioFailed");
+  if (errorCode === "ASR_TRANSCRIPTION_URL_MISSING") return I18n.t("audioFailed");
+  if (errorCode === "ASR_UNSUPPORTED_EXTENSION") return I18n.t("audioUnsupportedExtension");
+  if (errorCode === "ASR_UNSUPPORTED_MIME") return I18n.t("audioFailed");
+  if (fallbackMessage && !/^ASR_|FILE_/.test(fallbackMessage)) return fallbackMessage;
+  return I18n.t("audioUnknownError");
+}
+
+function handleAsrFailure(message) {
+  clearAsrPolling();
+  setAudioControlsDisabled(false);
+  showError(message, false, audioSelectedFile ? uploadSelectedAudio : () => showState("idle"));
+}
+
+async function uploadSelectedAudio() {
+  if (!audioSelectedFile) {
+    showError(I18n.t("audioUnsupportedExtension"), false, () => showState("idle"));
+    return;
+  }
+
+  const token = await BackendApi.getToken();
+  if (!token) {
+    showError(I18n.t("audioLoginRequired"), false, showAuthPage);
+    return;
+  }
+
+  clearAsrPolling();
+  setAudioControlsDisabled(true);
+  $("save-status").classList.add("hidden");
+  $("proxy-reminder").classList.add("hidden");
+  $("loading-text-main").textContent = I18n.t("audioUploading");
+  $("loading-sub").textContent = I18n.t("audioUploadHint");
+  showState("loading");
+
+  try {
+    const created = await BackendApi.uploadAudioForSummary(audioSelectedFile);
+    const job = {
+      jobId: created.jobId,
+      status: created.status,
+      fileName: audioSelectedFile.name,
+      fileSize: audioSelectedFile.size,
+      startedAt: Date.now(),
+      sourceUrl: getAudioSourceUrl(audioSelectedFile.name),
+    };
+    activeAsrJob = job;
+    asrNetworkFailures = 0;
+    await saveActiveAsrJob(job);
+    startAsrElapsedTicker(created.status === "QUEUED" ? "audioJobQueued" : "audioTranscribing");
+    pollAsrJob();
+  } catch (e) {
+    setAudioControlsDisabled(false);
+    const message = e.status ? mapAsrError(e.errorCode, e.message, e.status) : I18n.t("audioNetworkError");
+    handleAsrFailure(message);
+  }
+}
+
+async function pollAsrJob() {
+  if (!activeAsrJob) return;
+
+  if (Date.now() - activeAsrJob.startedAt > ASR_FRONTEND_TIMEOUT_MS) {
+    await clearActiveAsrJob();
+    handleAsrFailure(I18n.t("audioTimeout"));
+    return;
+  }
+
+  try {
+    const status = await BackendApi.getAsrJob(activeAsrJob.jobId);
+    asrNetworkFailures = 0;
+    activeAsrJob.status = status.status;
+    await saveActiveAsrJob(activeAsrJob);
+
+    if (status.status === "QUEUED" || status.status === "RUNNING") {
+      startAsrElapsedTicker(status.status === "QUEUED" ? "audioJobQueued" : "audioTranscribing");
+      asrPollTimer = setTimeout(pollAsrJob, ASR_POLL_INTERVAL_MS);
+      return;
+    }
+
+    if (status.status === "SUCCEEDED") {
+      const completedJob = { ...activeAsrJob };
+      clearAsrPolling();
+      await clearActiveAsrJob();
+      setAudioControlsDisabled(false);
+      const summary = status.summary || {};
+      const url = completedJob.sourceUrl || getAudioSourceUrl(completedJob.fileName);
+      lastResult = { ...summary, url, sourceType: "audio", durationSeconds: status.durationSeconds };
+      renderResult(summary, url, "audio");
+      showState("result");
+      showProxyReminderIfNeeded(summary);
+      autoSave(summary, url, "audio");
+      return;
+    }
+
+    if (status.status === "FAILED") {
+      await clearActiveAsrJob();
+      handleAsrFailure(mapAsrError(status.errorCode, null));
+      return;
+    }
+
+    asrPollTimer = setTimeout(pollAsrJob, ASR_POLL_INTERVAL_MS);
+  } catch (e) {
+    asrNetworkFailures++;
+    if (e.status === 401 || e.status === 403) {
+      await clearActiveAsrJob();
+      handleAsrFailure(I18n.t("audioLoginRequired"));
+      return;
+    }
+    if (asrNetworkFailures <= ASR_MAX_NETWORK_FAILURES) {
+      updateAsrLoadingText("audioTranscribing", asrNetworkFailures);
+      asrPollTimer = setTimeout(pollAsrJob, ASR_POLL_INTERVAL_MS);
+      return;
+    }
+    await clearActiveAsrJob();
+    handleAsrFailure(I18n.t("audioNetworkError"));
+  }
+}
+
+async function restoreActiveAsrJobIfNeeded() {
+  const job = await getActiveAsrJob();
+  if (!job || !job.jobId) return;
+  const token = await BackendApi.getToken();
+  if (!token) return;
+  activeAsrJob = job;
+  asrNetworkFailures = 0;
+  setAudioControlsDisabled(true);
+  showToast(I18n.t("audioRestoredJob"));
+  showState("loading");
+  startAsrElapsedTicker(job.status === "QUEUED" ? "audioJobQueued" : "audioTranscribing");
+  pollAsrJob();
+}
+
 async function generateSummary() {
+  clearAsrPolling();
   showState("loading");
   $("loading-text-main").textContent = I18n.t("loadingText");
+  $("loading-sub").textContent = I18n.t("loadingSub");
   $("save-status").classList.add("hidden");
   $("proxy-reminder").classList.add("hidden");
 
@@ -997,9 +1332,12 @@ $("btn-translate").addEventListener("click", async () => {
 
 // ===== 事件绑定 =====
 $("btn-generate").addEventListener("click", generateSummary);
-$("btn-retry").addEventListener("click", generateSummary);
+$("btn-retry").addEventListener("click", () => currentRetryHandler());
 $("btn-copy").addEventListener("click", copySummary);
 $("btn-new").addEventListener("click", () => {
+  clearAsrPolling();
+  clearActiveAsrJob();
+  setAudioControlsDisabled(false);
   $("mindmap-visual-container").classList.remove("hidden");
   $("mindmap-text-container").classList.add("hidden");
   $("btn-mindmap-visual").classList.add("active");
@@ -1014,6 +1352,24 @@ $("btn-new").addEventListener("click", () => {
   $("proxy-reminder").classList.add("hidden");
   showState("idle");
 });
+
+$("btn-choose-audio").addEventListener("click", async () => {
+  const token = await BackendApi.getToken();
+  if (!token) {
+    showError(I18n.t("audioLoginRequired"), false, showAuthPage);
+    return;
+  }
+  $("audio-file-input").click();
+});
+
+$("audio-file-input").addEventListener("change", async (e) => {
+  const file = e.target.files && e.target.files[0];
+  await handleAudioFileSelected(file);
+});
+
+$("btn-upload-audio").addEventListener("click", uploadSelectedAudio);
+
+window.addEventListener("beforeunload", clearAsrPolling);
 
 $("btn-settings").addEventListener("click", openSettings);
 $("btn-error-goto-settings").addEventListener("click", openSettings);
@@ -1037,6 +1393,8 @@ $("btn-manual-submit").addEventListener("click", async () => {
   }
 
   showState("loading");
+  $("loading-text-main").textContent = I18n.t("aiLoadingText");
+  $("loading-sub").textContent = I18n.t("loadingSub");
   $("save-status").classList.add("hidden");
   $("proxy-reminder").classList.add("hidden");
 
@@ -1070,6 +1428,7 @@ $("settings-overlay").addEventListener("click", (e) => {
   const loggedIn = await BackendApi.isLoggedIn();
 
   await updateAuthUI();
+  await restoreActiveAsrJobIfNeeded();
 
   // 未登录且首次使用，显示登录页
   if (!loggedIn) {

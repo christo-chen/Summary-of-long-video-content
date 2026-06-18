@@ -78,6 +78,57 @@ const BackendApi = {
     return data.data;
   },
 
+  async uploadAudioForSummary(file) {
+    const token = await this.getToken();
+    if (!token) {
+      const err = new Error(I18n.t("audioLoginRequired"));
+      err.status = 401;
+      throw err;
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch(this.BASE_URL + "/audio/transcribe-summary", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + token },
+      body: formData,
+    });
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok || result.code !== 200) {
+      const err = new Error(result.message || I18n.t("backendRequestFailed"));
+      err.status = response.status || result.code;
+      err.errorCode = result.message || result.errorCode;
+      throw err;
+    }
+
+    return result.data;
+  },
+
+  async getAsrJob(jobId) {
+    const token = await this.getToken();
+    if (!token) {
+      const err = new Error(I18n.t("audioLoginRequired"));
+      err.status = 401;
+      throw err;
+    }
+
+    const response = await fetch(this.BASE_URL + "/asr/jobs/" + encodeURIComponent(jobId), {
+      headers: { "Authorization": "Bearer " + token },
+    });
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok || result.code !== 200) {
+      const err = new Error(result.message || I18n.t("backendRequestFailed"));
+      err.status = response.status || result.code;
+      err.errorCode = result.message || result.errorCode;
+      throw err;
+    }
+
+    return result.data;
+  },
+
   // ===== 认证接口 =====
 
   async register(email, password) {

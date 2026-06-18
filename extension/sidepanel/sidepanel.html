@@ -60,6 +60,22 @@
           <span class="divider-line-h"></span>
         </div>
         <button id="btn-show-manual" class="btn-secondary btn-manual" data-i18n="btnManualInput">📋 粘贴文本生成摘要</button>
+        <div class="manual-divider">
+          <span class="divider-line-h"></span>
+          <span class="divider-text" data-i18n="orAudioUpload">或上传音频</span>
+          <span class="divider-line-h"></span>
+        </div>
+        <div class="audio-upload-panel">
+          <input id="audio-file-input" class="hidden" type="file" accept="audio/*,.mp3,.m4a,.wav,.aac,.flac,.mp4">
+          <button id="btn-choose-audio" class="btn-secondary btn-audio" data-i18n="btnChooseAudio">🎧 选择音频文件</button>
+          <div id="audio-file-info" class="audio-file-info hidden">
+            <div id="audio-file-name" class="audio-file-name"></div>
+            <div id="audio-file-meta" class="audio-file-meta"></div>
+          </div>
+          <p id="audio-upload-hint" class="audio-upload-hint" data-i18n="audioUploadHint">支持 MP3/M4A/AAC/WAV/FLAC/MP4，单文件不超过 50MB。</p>
+          <p id="audio-upload-warning" class="audio-upload-warning hidden"></p>
+          <button id="btn-upload-audio" class="btn-primary btn-audio-submit hidden" data-i18n="btnUploadAudio">上传并生成摘要</button>
+        </div>
       </div>
 
       <!-- 手动输入状态 -->
@@ -77,7 +93,7 @@
       <div id="state-loading" class="state hidden">
         <div class="loader"></div>
         <p id="loading-text-main" class="loading-text" data-i18n="loadingText">正在提取内容并生成摘要...</p>
-        <p class="loading-sub" data-i18n="loadingSub">首次使用可能需要 10-20 秒</p>
+        <p id="loading-sub" class="loading-sub" data-i18n="loadingSub">首次使用可能需要 10-20 秒</p>
       </div>
 
       <!-- 错误状态 -->
@@ -185,6 +201,7 @@
         <option value="youtube" data-i18n="historyFilterYoutube">▶️ YouTube</option>
         <option value="github" data-i18n="historyFilterGithub">🐙 GitHub</option>
         <option value="stackoverflow" data-i18n="historyFilterSO">💡 SO</option>
+        <option value="audio" data-i18n="historyFilterAudio">🎧 音频</option>
       </select>
     </div>
 
