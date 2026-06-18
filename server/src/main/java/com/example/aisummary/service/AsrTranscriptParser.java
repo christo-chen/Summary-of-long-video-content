@@ -21,7 +21,7 @@ public class AsrTranscriptParser {
             }
         }
         if (texts.isEmpty()) {
-            throw new RuntimeException("ASR_TRANSCRIPT_EMPTY");
+            return "";
         }
         return String.join("\n", texts);
     }

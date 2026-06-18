@@ -121,6 +121,69 @@ class AsrWorkerServiceTest {
         assertThat(finalUpdate.getErrorCode()).isEqualTo("ASR_TIMEOUT");
     }
 
+    @Test
+    void process_emptyTranscriptsMarksFailedWithoutSummaryAndCleansOss() throws Exception {
+        AsrJob job = job();
+        when(asrJobMapper.selectById(42L)).thenReturn(job);
+        when(ossStorageService.generateSignedUrl(eq("asr/object.mp3"), any()))
+                .thenReturn(new URL("https://signed.example/object.mp3"));
+        when(qwenAsrClient.submit("https://signed.example/object.mp3"))
+                .thenReturn(new QwenAsrClient.QwenAsrTask("task-1", "RUNNING", null, null));
+        when(qwenAsrClient.fetch("task-1"))
+                .thenReturn(new QwenAsrClient.QwenAsrTask(
+                        "task-1", "SUCCEEDED", "https://result.example/transcription.json", null));
+        when(transcriptionDownloader.download("https://result.example/transcription.json"))
+                .thenReturn(objectMapper.readTree("{\"transcripts\":[]}"));
+
+        asrWorkerService.process(42L);
+
+        verify(aiProxyService, never()).generate(anyString(), anyString());
+        verify(ossStorageService).deleteObject("asr/object.mp3");
+
+        ArgumentCaptor<AsrJob> captor = ArgumentCaptor.forClass(AsrJob.class);
+        verify(asrJobMapper, atLeastOnce()).updateById(captor.capture());
+        AsrJob finalUpdate = captor.getAllValues().get(captor.getAllValues().size() - 1);
+        assertThat(finalUpdate.getStatus()).isEqualTo("FAILED");
+        assertThat(finalUpdate.getErrorCode()).isEqualTo("ASR_EMPTY_TRANSCRIPT");
+        assertThat(finalUpdate.getSummary()).isNull();
+        assertThat(finalUpdate.getDurationSeconds()).isNull();
+    }
+
+    @Test
+    void process_blankTranscriptTextsMarksFailedWithoutSummaryAndCleansOss() throws Exception {
+        AsrJob job = job();
+        when(asrJobMapper.selectById(42L)).thenReturn(job);
+        when(ossStorageService.generateSignedUrl(eq("asr/object.mp3"), any()))
+                .thenReturn(new URL("https://signed.example/object.mp3"));
+        when(qwenAsrClient.submit("https://signed.example/object.mp3"))
+                .thenReturn(new QwenAsrClient.QwenAsrTask("task-1", "RUNNING", null, null));
+        when(qwenAsrClient.fetch("task-1"))
+                .thenReturn(new QwenAsrClient.QwenAsrTask(
+                        "task-1", "SUCCEEDED", "https://result.example/transcription.json", null));
+        when(transcriptionDownloader.download("https://result.example/transcription.json"))
+                .thenReturn(objectMapper.readTree("""
+                        {
+                          "transcripts": [
+                            {"text": "   "},
+                            {"text": "\\n\\t"}
+                          ]
+                        }
+                        """));
+
+        asrWorkerService.process(42L);
+
+        verify(aiProxyService, never()).generate(anyString(), anyString());
+        verify(ossStorageService).deleteObject("asr/object.mp3");
+
+        ArgumentCaptor<AsrJob> captor = ArgumentCaptor.forClass(AsrJob.class);
+        verify(asrJobMapper, atLeastOnce()).updateById(captor.capture());
+        AsrJob finalUpdate = captor.getAllValues().get(captor.getAllValues().size() - 1);
+        assertThat(finalUpdate.getStatus()).isEqualTo("FAILED");
+        assertThat(finalUpdate.getErrorCode()).isEqualTo("ASR_EMPTY_TRANSCRIPT");
+        assertThat(finalUpdate.getSummary()).isNull();
+        assertThat(finalUpdate.getDurationSeconds()).isNull();
+    }
+
     private AsrJob job() {
         AsrJob job = new AsrJob();
         job.setId(42L);

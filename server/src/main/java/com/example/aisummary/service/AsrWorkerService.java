@@ -65,6 +65,9 @@ public class AsrWorkerService {
             JsonNode transcription = transcriptionDownloader.download(completed.transcriptionUrl());
             step = "PARSE";
             String transcriptText = transcriptParser.extractText(transcription);
+            if (!StringUtils.hasText(transcriptText)) {
+                throw new AsrWorkerException("ASR_EMPTY_TRANSCRIPT");
+            }
             Integer durationSeconds = transcriptParser.extractDurationSeconds(transcription, completed.usage());
             step = "SUMMARIZE";
             Object summary = aiProxyService.generate(SUMMARY_SOURCE_TYPE, transcriptText);
@@ -81,7 +84,8 @@ public class AsrWorkerService {
             log.error("ASR job failed, jobId={}, step={}", jobId, step, e);
             failJob(job, "ASR_INTERRUPTED");
         } catch (AsrWorkerException e) {
-            log.error("ASR job failed, jobId={}, step={}", jobId, step, e);
+            log.error("ASR job failed: jobId={} userId={} phase={} status=FAILED errorCode={}",
+                    jobId, job.getUserId(), step, e.getMessage(), e);
             failJob(job, e.getMessage());
         } catch (Exception e) {
             log.error("ASR job failed, jobId={}, step={}", jobId, step, e);
