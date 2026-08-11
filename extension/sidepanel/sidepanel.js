@@ -170,11 +170,6 @@ const SOURCE_TYPE_LABELS = {
 function getSourceLabel(type) {
   return I18n.sourceLabel(type);
 }
-const SOURCE_TYPE_COLORS = {
-  article: "#2e86c1", bilibili: "#fb7299", youtube: "#ff0000",
-  github: "#333333", stackoverflow: "#f48024", audio: "#16a085",
-};
-
 const AUDIO_MAX_BYTES = 50 * 1024 * 1024;
 const AUDIO_MAX_DURATION_SECONDS = 30 * 60;
 const ASR_POLL_INTERVAL_MS = 3000;
@@ -592,8 +587,7 @@ async function autoSave(result, url, sourceType) {
 function renderResult(result, url, sourceType) {
   const badge = $("result-source-type");
   badge.textContent = getSourceLabel(sourceType);
-  badge.style.background = (SOURCE_TYPE_COLORS[sourceType] || "#2e86c1") + "20";
-  badge.style.color = SOURCE_TYPE_COLORS[sourceType] || "#2e86c1";
+  badge.dataset.source = sourceType || "article";
 
   $("result-url").href = url;
   $("result-url").textContent = url;
@@ -1134,7 +1128,7 @@ function createHistoryItem(item) {
   div.innerHTML =
     '<div class="history-item-header">' +
       '<span class="history-item-title">' + escapeHtml(item.title) + '</span>' +
-      '<span class="history-item-badge">' + typeBadge + '</span>' +
+      '<span class="history-item-badge" data-source="' + (item.sourceType || "article") + '">' + typeBadge + '</span>' +
     '</div>' +
     '<div class="history-item-summary">' + escapeHtml(summaryText) + '</div>' +
     '<div class="history-item-footer">' +
@@ -1176,6 +1170,7 @@ async function openHistoryDetail(id) {
 
     $("detail-title").textContent = item.title;
     $("detail-source-type").textContent = getSourceLabel(item.sourceType);
+    $("detail-source-type").dataset.source = item.sourceType || "article";
     $("detail-url").href = item.url;
     $("detail-url").textContent = item.url;
     $("detail-summary").textContent = json.one_line_summary || "";

@@ -10,17 +10,17 @@
 
   <!-- ===== 顶部导航栏 ===== -->
   <header class="header">
-    <h1 class="header-title">📝 AI Summary</h1>
+    <h1 class="header-title">AI Summary</h1>
     <div class="header-right">
       <span id="user-email" class="user-email"></span>
-      <button id="btn-settings" class="btn-icon" title="设置">⚙️</button>
+      <button id="btn-settings" class="btn-icon" title="设置" aria-label="设置">⚙</button>
     </div>
   </header>
 
-  <!-- ===== 底部导航 Tab ===== -->
+  <!-- ===== 顶部导航 Tab ===== -->
   <nav class="tab-bar">
-    <button class="tab-btn active" data-tab="tab-summary" data-i18n="tabSummary">📄 摘要</button>
-    <button class="tab-btn" data-tab="tab-history" data-i18n="tabHistory">📚 历史</button>
+    <button class="tab-btn active" data-tab="tab-summary" data-i18n="tabSummary">摘要</button>
+    <button class="tab-btn" data-tab="tab-history" data-i18n="tabHistory">历史</button>
   </nav>
 
   <!-- ═══════════════ 登录/注册页 ═══════════════ -->
@@ -54,28 +54,18 @@
         <div class="idle-icon">🤖</div>
         <p class="idle-text" data-i18n="idleText">打开任意网页文章，点击下方按钮生成摘要</p>
         <button id="btn-generate" class="btn-primary" data-i18n="btnGenerate">生成摘要</button>
-        <div class="manual-divider">
-          <span class="divider-line-h"></span>
-          <span class="divider-text" data-i18n="orManualInput">或手动输入内容</span>
-          <span class="divider-line-h"></span>
-        </div>
-        <button id="btn-show-manual" class="btn-secondary btn-manual" data-i18n="btnManualInput">📋 粘贴文本生成摘要</button>
-        <div class="manual-divider">
-          <span class="divider-line-h"></span>
-          <span class="divider-text" data-i18n="orAudioUpload">或上传音频</span>
-          <span class="divider-line-h"></span>
-        </div>
+        <button id="btn-show-manual" class="btn-secondary btn-manual" data-i18n="btnManualInput">📋 粘贴文本</button>
         <div class="audio-upload-panel">
           <input id="audio-file-input" class="hidden" type="file" accept="audio/*,.mp3,.m4a,.wav,.aac,.flac,.mp4">
-          <button id="btn-choose-audio" class="btn-secondary btn-audio" data-i18n="btnChooseAudio">🎧 选择音频文件</button>
+          <button id="btn-choose-audio" class="btn-secondary btn-audio" data-i18n="btnChooseAudio">🎧 选择音频</button>
           <div id="audio-file-info" class="audio-file-info hidden">
             <div id="audio-file-name" class="audio-file-name"></div>
             <div id="audio-file-meta" class="audio-file-meta"></div>
           </div>
-          <p id="audio-upload-hint" class="audio-upload-hint" data-i18n="audioUploadHint">支持 MP3/M4A/AAC/WAV/FLAC/MP4，单文件不超过 50MB。</p>
           <p id="audio-upload-warning" class="audio-upload-warning hidden"></p>
           <button id="btn-upload-audio" class="btn-primary btn-audio-submit hidden" data-i18n="btnUploadAudio">上传并生成摘要</button>
         </div>
+        <p id="audio-upload-hint" class="audio-upload-hint" data-i18n="audioUploadHint">支持 MP3/M4A/AAC/WAV/FLAC/MP4，单文件不超过 50MB。</p>
       </div>
 
       <!-- 手动输入状态 -->
@@ -107,7 +97,7 @@
       <!-- 结果状态 -->
       <div id="state-result" class="state hidden">
         <div class="source-info">
-          <span id="result-source-type" class="source-badge">文章</span>
+          <span id="result-source-type" class="source-badge" data-source="article">文章</span>
           <a id="result-url" class="source-url" href="#" target="_blank">原文链接</a>
         </div>
         <h2 id="result-title" class="result-title"></h2>
@@ -115,17 +105,17 @@
           <p id="result-summary" class="summary-text"></p>
         </div>
         <div class="section">
-          <h3 class="section-title" data-i18n="sectionKeyPoints">📌 核心要点</h3>
+          <h3 class="section-title" data-i18n="sectionKeyPoints">核心要点</h3>
           <ul id="result-keypoints" class="keypoints-list"></ul>
         </div>
         <div class="section">
           <div class="section-header">
-            <h3 class="section-title" data-i18n="sectionMindmap">🗺️ 思维导图</h3>
+            <h3 class="section-title" data-i18n="sectionMindmap">思维导图</h3>
             <div class="mindmap-toggle">
               <button id="btn-mindmap-visual" class="toggle-btn active" data-i18n="btnMindmapVisual">图形</button>
               <button id="btn-mindmap-text" class="toggle-btn" data-i18n="btnMindmapText">文本</button>
-              <button id="btn-mindmap-fullscreen" class="toggle-btn" title="全屏查看">⛶</button>
-              <button id="btn-mindmap-export-png" class="toggle-btn" title="导出 PNG">📷</button>
+              <button id="btn-mindmap-fullscreen" class="toggle-btn" title="全屏查看" aria-label="全屏查看">⛶</button>
+              <button id="btn-mindmap-export-png" class="toggle-btn" title="导出 PNG" aria-label="导出 PNG">📷</button>
             </div>
           </div>
           <div id="mindmap-visual-container" class="mindmap-container">
@@ -139,10 +129,10 @@
         <!-- 思维导图全屏遮罩 -->
         <div id="mindmap-fullscreen-overlay" class="mindmap-fullscreen-overlay hidden">
           <div class="mindmap-fullscreen-header">
-            <h3 data-i18n="sectionMindmap">🗺️ 思维导图</h3>
+            <h3 data-i18n="sectionMindmap">思维导图</h3>
             <div class="mindmap-fullscreen-actions">
               <button id="btn-fs-export-png" class="btn-secondary btn-small">📷 PNG</button>
-              <button id="btn-fs-close" class="btn-icon btn-fs-close">✕</button>
+              <button id="btn-fs-close" class="btn-icon btn-fs-close" aria-label="关闭">✕</button>
             </div>
           </div>
           <div class="mindmap-fullscreen-body">
@@ -159,7 +149,7 @@
 
         <!-- 导出菜单 -->
         <div class="section">
-          <h3 class="section-title" data-i18n="sectionExport">📤 导出笔记</h3>
+          <h3 class="section-title" data-i18n="sectionExport">导出笔记</h3>
           <div class="export-buttons">
             <button id="btn-export-notion" class="export-btn" title="导出到 Notion">
               <span class="export-icon">📓</span>
@@ -182,9 +172,9 @@
         </div>
 
         <div class="action-bar">
-          <button id="btn-translate" class="btn-secondary btn-translate" data-i18n="btnTranslate">🌐 翻译</button>
-          <button id="btn-copy" class="btn-secondary" data-i18n="btnCopy">📋 复制摘要</button>
-          <button id="btn-new" class="btn-secondary" data-i18n="btnNew">🔄 新的摘要</button>
+          <button id="btn-translate" class="btn-secondary btn-translate" data-i18n="btnTranslate">翻译</button>
+          <button id="btn-copy" class="btn-secondary" data-i18n="btnCopy">复制摘要</button>
+          <button id="btn-new" class="btn-secondary" data-i18n="btnNew">新的摘要</button>
         </div>
       </div>
     </main>
@@ -193,15 +183,15 @@
   <!-- ═══════════════ 历史记录页 ═══════════════ -->
   <div id="tab-history" class="page hidden">
     <div class="history-header">
-      <input id="history-search" type="text" placeholder="🔍 搜索标题或内容..." data-i18n="historySearchPlaceholder" class="search-input">
+      <input id="history-search" type="text" placeholder="搜索标题或内容..." data-i18n="historySearchPlaceholder" class="search-input">
       <select id="history-filter" class="filter-select">
         <option value="" data-i18n="historyFilterAll">全部类型</option>
-        <option value="article" data-i18n="historyFilterArticle">📄 文章</option>
-        <option value="bilibili" data-i18n="historyFilterBilibili">📺 B站</option>
-        <option value="youtube" data-i18n="historyFilterYoutube">▶️ YouTube</option>
-        <option value="github" data-i18n="historyFilterGithub">🐙 GitHub</option>
-        <option value="stackoverflow" data-i18n="historyFilterSO">💡 SO</option>
-        <option value="audio" data-i18n="historyFilterAudio">🎧 音频</option>
+        <option value="article" data-i18n="historyFilterArticle">文章</option>
+        <option value="bilibili" data-i18n="historyFilterBilibili">B站</option>
+        <option value="youtube" data-i18n="historyFilterYoutube">YouTube</option>
+        <option value="github" data-i18n="historyFilterGithub">GitHub</option>
+        <option value="stackoverflow" data-i18n="historyFilterSO">SO</option>
+        <option value="audio" data-i18n="historyFilterAudio">音频</option>
       </select>
     </div>
 
@@ -233,7 +223,7 @@
       <div class="detail-panel">
         <div class="detail-header">
           <h3 id="detail-title" class="detail-title"></h3>
-          <button id="btn-close-detail" class="btn-icon">✕</button>
+          <button id="btn-close-detail" class="btn-icon" aria-label="关闭">✕</button>
         </div>
         <div class="detail-body">
           <div class="source-info">
@@ -244,7 +234,7 @@
             <p id="detail-summary" class="summary-text"></p>
           </div>
           <div class="section">
-            <h3 class="section-title" data-i18n="sectionKeyPoints">📌 核心要点</h3>
+            <h3 class="section-title" data-i18n="sectionKeyPoints">核心要点</h3>
             <ul id="detail-keypoints" class="keypoints-list"></ul>
           </div>
           <div class="detail-actions">
@@ -260,7 +250,7 @@
     <div class="settings-panel">
       <div class="settings-header">
         <h2 data-i18n="settingsTitle">设置</h2>
-        <button id="btn-close-settings" class="btn-icon">✕</button>
+        <button id="btn-close-settings" class="btn-icon" aria-label="关闭">✕</button>
       </div>
       <div class="settings-body">
         <div class="form-group">
