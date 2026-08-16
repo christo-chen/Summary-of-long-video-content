@@ -24,14 +24,18 @@
 - 📒 Notion OAuth 同步 / Obsidian & Logseq 导出
 - 🔐 JWT + BCrypt 用户认证
 - 💾 MySQL 存储摘要历史、标签和使用记录
+- 🌗 深色模式，自动跟随系统外观
+- ♿ 默认可访问 —— 焦点可见、图标按钮有可访问名、尊重减少动效偏好
 
 ## 📸 截图展示
 
-> 即将推出：GIF 演示和截图将在此处添加。
+在侧边栏中总结开源教程站点，生成结构化摘要与核心要点：
 
-<!-- 
-![Demo GIF](docs/images/demo.gif)
--->
+![侧边栏中的结构化摘要](docs/images/summary-zh.png)
+
+思维导图全屏查看，支持导出 PNG：
+
+![全屏查看思维导图](docs/images/mindmap-zh.png)
 
 ## 🏗️ 系统架构
 
@@ -51,7 +55,7 @@ graph LR
 
 | 层级 | 技术 |
 |------|------|
-| 前端 | Chrome 扩展（Manifest V3）、HTML/CSS/JS、Markmap |
+| 前端 | Chrome 扩展（Manifest V3）、HTML/CSS/JS（设计令牌 + 深色模式）、Markmap |
 | 后端 | Java 21、Spring Boot 3、MyBatis-Plus、MySQL |
 | AI | DeepSeek API（通过后端代理） |
 | 认证 | JWT + BCrypt、Notion OAuth 2.0 |
@@ -110,6 +114,7 @@ Summary-of-long-video-content/
 - [x] 视频 URL 白名单校验
 - [x] 后端单元测试（JUnit 5 + Mockito）
 - [x] 生产环境部署（阿里云）
+- [x] 侧边栏 UI 改版 —— 设计令牌、深色模式、无障碍基线
 - [ ] 部署包含 yt-dlp 支持的最新后端
 - [ ] 视频字幕兜底功能生产验证
 - [ ] Chrome 网上应用店发布

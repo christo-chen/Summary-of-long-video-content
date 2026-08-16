@@ -24,14 +24,18 @@
 - 📒 Sync to Notion via OAuth / Export to Obsidian & Logseq
 - 🔐 JWT + BCrypt authentication
 - 💾 MySQL-backed summary history, tags, and usage records
+- 🌗 Dark mode that follows your system appearance
+- ♿ Accessible by default — visible focus rings, labeled icon buttons, respects reduced-motion
 
 ## 📸 Screenshots
 
-> Coming soon — GIF demo and screenshots will be added here.
+Summarizing a Wikipedia article — structured summary and key points in the side panel:
 
-<!-- 
-![Demo GIF](docs/images/demo.gif)
--->
+![Structured summary in the side panel](docs/images/summary-en.png)
+
+Mind map in full-screen view, exportable as PNG:
+
+![Mind map in full-screen view](docs/images/mindmap-en.png)
 
 ## 🏗️ Architecture
 
@@ -51,7 +55,7 @@ graph LR
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | Chrome Extension (Manifest V3), HTML/CSS/JS, Markmap |
+| Frontend | Chrome Extension (Manifest V3), HTML/CSS/JS with design tokens and dark mode, Markmap |
 | Backend | Java 21, Spring Boot 3, MyBatis-Plus, MySQL |
 | AI | DeepSeek API (via backend proxy) |
 | Auth | JWT + BCrypt, Notion OAuth 2.0 |
@@ -110,6 +114,7 @@ Summary-of-long-video-content/
 - [x] Video URL whitelist validation
 - [x] Backend unit tests with JUnit 5 + Mockito
 - [x] Production deployment (Alibaba Cloud)
+- [x] Sidepanel UI redesign — design tokens, dark mode, accessibility baseline
 - [ ] Deploy latest backend with yt-dlp support
 - [ ] Production validation for video transcript fallback
 - [ ] Chrome Web Store publication
